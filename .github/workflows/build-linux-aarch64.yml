@@ -1,0 +1,48 @@
+name: Build Linux aarch64
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - 'submodules/**'
+      - 'cmake/**'
+      - '*.sh'
+      - 'CMakeLists.txt'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+
+      - name: Install cross-compilation toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu ninja-build
+
+      - name: Get protoc
+        run: |
+          wget https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip
+          sudo unzip -j protoc-*.zip bin/protoc -d /usr/local/bin/
+
+      - name: Apply patches (Linux variant)
+        run: |
+          # 注意：patch.sh 现在会检测 ANDROID_NDK 环境变量，Linux 下未设置，将跳过 Android 专用补丁
+          chmod +x patch.sh
+          ./patch.sh
+
+      - name: Build Linux aarch64
+        run: |
+          chmod +x build-linux-aarch64.sh
+          ./build-linux-aarch64.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aapt2-linux-aarch64
+          path: build_linux/bin/aapt2-linux-aarch64
+          archive: false
