@@ -18,8 +18,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            libc6-dev-arm64-cross libstdc++-12-dev-arm64-cross \
-            ninja-build
+            libc6-dev-arm64-cross ninja-build
 
       - name: Get protoc
         run: |
@@ -32,6 +31,9 @@ jobs:
           ./patch.sh
 
       - name: Build Linux aarch64
+        env:
+          CC: aarch64-linux-gnu-gcc
+          CXX: aarch64-linux-gnu-g++
         run: |
           chmod +x build-linux-aarch64.sh
           ./build-linux-aarch64.sh
