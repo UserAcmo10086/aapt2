@@ -4,11 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [ main, dev ]
-    paths:
-      - 'submodules/**'
-      - 'cmake/**'
-      - '*.sh'
-      - 'CMakeLists.txt'
 
 jobs:
   build-linux:
@@ -22,15 +17,14 @@ jobs:
       - name: Install cross-compilation toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            libc6-dev-arm64-cross ninja-build
+          sudo apt-get install -y crossbuild-essential-arm64 ninja-build
 
-      - name: Get protoc
+      - name: Get protoc (host)
         run: |
           wget https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip
           sudo unzip -j protoc-*.zip bin/protoc -d /usr/local/bin/
 
-      - name: Apply patches (Linux variant)
+      - name: Apply patches (Linux compatible)
         run: |
           chmod +x patch.sh
           ./patch.sh
