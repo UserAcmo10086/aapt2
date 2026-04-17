@@ -1,22 +1,26 @@
 #!/bin/bash
 set -e
 
-# 目标架构
+#目标架构
 TARGET_TRIPLE="aarch64-linux-gnu"
+SYSROOT="/usr/$TARGET_TRIPLE"          # Ubuntu 交叉编译工具的 sysroot 路径
 BUILD_DIR="build_linux"
 OUTPUT_BIN="$BUILD_DIR/bin/aapt2-linux-aarch64"
 
-# 清理旧构建
+# 检查 sysroot 是否存在
+if [ ! -d "$SYSROOT" ]; then
+    echo "Error: sysroot $SYSROOT not found. Please install cross-compilation toolchain and libc6-dev-arm64-cross."
+    exit 1
+fi
+
 rm -rf "$BUILD_DIR"
 mkdir -p "$(dirname "$OUTPUT_BIN")"
 
-# 设置交叉编译工具链
 export CC="$TARGET_TRIPLE-gcc"
 export CXX="$TARGET_TRIPLE-g++"
 export AR="$TARGET_TRIPLE-ar"
 export STRIP="$TARGET_TRIPLE-strip"
 
-# 配置 CMake（注意传递 -DLINUX_AARCH64=ON）
 cmake -GNinja \
   -B "$BUILD_DIR" \
   -DLINUX_AARCH64=ON \
@@ -24,7 +28,8 @@ cmake -GNinja \
   -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
   -DCMAKE_C_COMPILER="$CC" \
   -DCMAKE_CXX_COMPILER="$CXX" \
-  -DCMAKE_FIND_ROOT_PATH="/usr/$TARGET_TRIPLE" \
+  -DCMAKE_SYSROOT="$SYSROOT" \
+  -DCMAKE_FIND_ROOT_PATH="$SYSROOT" \
   -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
   -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
   -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
@@ -32,10 +37,7 @@ cmake -GNinja \
   -DPNG_SHARED=OFF \
   -DZLIB_USE_STATIC_LIBS=ON
 
-# 编译
 ninja -C "$BUILD_DIR" aapt2
 
-# 去除调试符号
 "$STRIP" --strip-unneeded "$OUTPUT_BIN"
-
 echo "Built: $OUTPUT_BIN"
