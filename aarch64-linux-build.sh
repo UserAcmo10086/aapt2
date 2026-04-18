@@ -2,8 +2,8 @@
 set -e
 
 # 定义目标架构
-TARGET_ARCH="aarch64"
 TARGET_TRIPLE="aarch64-linux-gnu"
+BUILD_DIR="build_aarch64_linux"
 
 # 帮助信息
 help() {
@@ -27,27 +27,44 @@ if [[ -z "${PROTOC_PATH}" ]]; then
 fi
 
 # 检查交叉编译器是否存在
-if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
-    echo "错误: 未找到 aarch64-linux-gnu-gcc，请安装 gcc-aarch64-linux-gnu"
+if ! command -v ${TARGET_TRIPLE}-gcc &> /dev/null; then
+    echo "错误: 未找到 ${TARGET_TRIPLE}-gcc，请安装 gcc-${TARGET_TRIPLE}"
     exit 1
 fi
 
-# 设置 sysroot 路径，默认使用系统工具链的默认 sysroot
+# 设置 sysroot 路径
 if [[ -z "${SYSROOT}" ]]; then
-    SYSROOT="/usr/aarch64-linux-gnu"
+    SYSROOT="/usr/${TARGET_TRIPLE}"
 fi
 
-# 检查 sysroot 是否存在
 if [[ ! -d "${SYSROOT}" ]]; then
     echo "错误: sysroot 目录不存在: ${SYSROOT}"
     exit 1
 fi
 
-# 配置 CMake 交叉编译参数
+# 清理之前的构建目录（可选，避免缓存问题）
+rm -rf "${BUILD_DIR}"
+
+# 备份原 CMakeLists.txt，使用专用配置
+echo "切换到 Linux aarch64 专用 CMake 配置文件..."
+mv CMakeLists.txt CMakeLists-android.bak
+cp CMakeLists-aarch64-linux.txt CMakeLists.txt
+
+# 确保无论脚本如何退出，都能恢复原 CMakeLists.txt
+restore_cmake() {
+    if [[ -f CMakeLists-android.bak ]]; then
+        echo "恢复原始 CMakeLists.txt 文件..."
+        mv CMakeLists-android.bak CMakeLists.txt
+    fi
+}
+trap restore_cmake EXIT
+
+# 配置 CMake（交叉编译 Linux aarch64）
+echo "开始 CMake 配置..."
 cmake -GNinja \
-    -B "build_aarch64_linux" \
+    -B "${BUILD_DIR}" \
     -DCMAKE_SYSTEM_NAME="Linux" \
-    -DCMAKE_SYSTEM_PROCESSOR="${TARGET_ARCH}" \
+    -DCMAKE_SYSTEM_PROCESSOR="aarch64" \
     -DCMAKE_C_COMPILER="${TARGET_TRIPLE}-gcc" \
     -DCMAKE_CXX_COMPILER="${TARGET_TRIPLE}-g++" \
     -DCMAKE_SYSROOT="${SYSROOT}" \
@@ -63,15 +80,15 @@ cmake -GNinja \
     -DCMAKE_USE_PTHREADS_INIT=TRUE \
     -DThreads_FOUND=TRUE \
     -DCMAKE_THREAD_LIBS_INIT="-lpthread" \
-    -DCMAKE_HAVE_THREADS_LIBRARY=TRUE \
-    -C "CMakeLists-aarch64-linux.txt"
+    -DCMAKE_HAVE_THREADS_LIBRARY=TRUE
 
-# 构建可执行文件
-ninja -C build_aarch64_linux aapt2
+# 构建 aapt2
+echo "开始编译..."
+ninja -C "${BUILD_DIR}" aapt2
 
-# 剥离调试符号（可选）
-aarch64-linux-gnu-strip --strip-unneeded "build_aarch64_linux/bin/aapt2"
+# 剥离调试符号（可选，生成更小的可执行文件）
+${TARGET_TRIPLE}-strip --strip-unneeded "${BUILD_DIR}/bin/aapt2"
 
-# 输出文件信息
-echo "构建完成，可执行文件位于: build_aarch64_linux/bin/aapt2"
-file "build_aarch64_linux/bin/aapt2"
+echo "构建完成！"
+echo "可执行文件位置: ${BUILD_DIR}/bin/aapt2"
+file "${BUILD_DIR}/bin/aapt2"
