@@ -62,25 +62,7 @@ fi
 
 echo ">>> compiler-rt 库目录: ${COMPILER_RT_LIB}"
 
-# 查找 crtbegin.o 和 crtend.o 的真实位置（可能也在 sysroot 中）
-CRTBEGIN_PATH=$(find "${COMPILER_RT_LIB}" "${LINUX_SYSROOT}" -name "crtbegin.o" 2>/dev/null | head -1)
-CRTEND_PATH=$(find "${COMPILER_RT_LIB}" "${LINUX_SYSROOT}" -name "crtend.o" 2>/dev/null | head -1)
-
-if [[ -z "${CRTBEGIN_PATH}" ]] || [[ -z "${CRTEND_PATH}" ]]; then
-    echo "错误：找不到 crtbegin.o 或 crtend.o，请确保已安装 libc6-dev-arm64-cross 和 gcc-aarch64-linux-gnu。"
-    exit 1
-fi
-
-CRT_DIR=$(dirname "${CRTBEGIN_PATH}")
-echo ">>> crt 文件目录: ${CRT_DIR}"
-
-# 为静态链接准备 crtbeginT.o（如果不存在则创建符号链接）
-if [[ ! -f "${CRT_DIR}/crtbeginT.o" ]]; then
-    echo ">>> 创建符号链接 ${CRT_DIR}/crtbeginT.o -> ${CRTBEGIN_PATH}"
-    ln -sf "$(basename "${CRTBEGIN_PATH}")" "${CRT_DIR}/crtbeginT.o"
-fi
-
-# 查找 compiler-rt builtins 静态库（可能命名为 libclang_rt.builtins-aarch64.a 或类似）
+# 查找 compiler-rt builtins 静态库
 BUILTINS_LIB=$(find "${COMPILER_RT_LIB}" -name "libclang_rt.builtins*.a" 2>/dev/null | head -1)
 if [[ -z "${BUILTINS_LIB}" ]]; then
     echo "错误：找不到 compiler-rt builtins 静态库。"
@@ -90,11 +72,31 @@ BUILTINS_LIB_NAME=$(basename "${BUILTINS_LIB}")
 BUILTINS_LIB_DIR=$(dirname "${BUILTINS_LIB}")
 echo ">>> compiler-rt builtins 库: ${BUILTINS_LIB}"
 
-# 备选 GCC 库目录（如果需要）
-GCC_LIB_DIR=""
-if command -v aarch64-linux-gnu-gcc &> /dev/null; then
-    GCC_LIB_DIR=$(aarch64-linux-gnu-gcc -print-libgcc-file-name | xargs dirname)
-    echo ">>> 备用 GCC 库目录: ${GCC_LIB_DIR}"
+# 获取 GCC 交叉编译器的库目录（包含 crtbegin.o, crtend.o 等）
+if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
+    echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-aarch64-linux-gnu。"
+    exit 1
+fi
+
+GCC_LIB_DIR=$(aarch64-linux-gnu-gcc -print-libgcc-file-name | xargs dirname)
+echo ">>> GCC 库目录: ${GCC_LIB_DIR}"
+
+# 检查必需的 crt 文件
+if [[ ! -f "${GCC_LIB_DIR}/crtbegin.o" ]]; then
+    echo "错误：${GCC_LIB_DIR}/crtbegin.o 不存在。"
+    ls -la "${GCC_LIB_DIR}" || true
+    exit 1
+fi
+
+if [[ ! -f "${GCC_LIB_DIR}/crtend.o" ]]; then
+    echo "错误：${GCC_LIB_DIR}/crtend.o 不存在。"
+    exit 1
+fi
+
+# 为静态链接创建 crtbeginT.o 符号链接（如果不存在）
+if [[ ! -f "${GCC_LIB_DIR}/crtbeginT.o" ]]; then
+    echo ">>> 创建符号链接 ${GCC_LIB_DIR}/crtbeginT.o -> crtbegin.o"
+    ln -sf crtbegin.o "${GCC_LIB_DIR}/crtbeginT.o"
 fi
 
 # 基础编译标志
@@ -104,12 +106,9 @@ COMMON_FLAGS+=" -rtlib=compiler-rt -unwindlib=libunwind"
 # 静态链接标志
 LINKER_FLAGS="-fuse-ld=lld -static"
 LINKER_FLAGS+=" -L${LINUX_SYSROOT}/usr/lib -L${LINUX_SYSROOT}/lib"
-LINKER_FLAGS+=" -L${CRT_DIR}"
+LINKER_FLAGS+=" -L${GCC_LIB_DIR}"
 LINKER_FLAGS+=" -L${BUILTINS_LIB_DIR}"
 LINKER_FLAGS+=" -l:${BUILTINS_LIB_NAME}"
-if [[ -n "${GCC_LIB_DIR}" ]]; then
-    LINKER_FLAGS+=" -L${GCC_LIB_DIR}"
-fi
 
 echo ">>> 使用的 sysroot: ${LINUX_SYSROOT}"
 echo ">>> 开始配置 CMake (目标: Linux aarch64)..."
