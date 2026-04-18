@@ -1,7 +1,7 @@
 name: 构建 Linux aarch64 版 aapt2
 
 on:
-  workflow_dispatch:          # 允许手动触发
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -17,12 +17,10 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: 安装 aarch64 交叉编译工具链及手动安装 zlib arm64 开发包
+      - name: 安装交叉编译工具链及手动部署 arm64 版 zlib 开发文件
         run: |
           set -e
-          sudo dpkg --add-architecture arm64
-          sudo apt-get update
-          # 安装交叉编译工具链及基础依赖
+          # 直接安装 amd64 的交叉工具链（无需 update，避免 arm64 源 404）
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
@@ -31,21 +29,17 @@ jobs:
             ninja-build \
             wget
 
-          # 手动下载并安装 zlib1g:arm64 和 zlib1g-dev:arm64
-          # 创建临时目录
+          # 创建临时目录并下载 arm64 的 zlib 包
           TEMP_DEB_DIR=$(mktemp -d)
           cd "$TEMP_DEB_DIR"
 
-          # 下载 zlib1g arm64 运行库（zlib1g-dev 的依赖）
           wget http://ports.ubuntu.com/pool/main/z/zlib/zlib1g_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
-          # 下载 zlib1g-dev arm64 开发包
           wget http://ports.ubuntu.com/pool/main/z/zlib/zlib1g-dev_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
 
-          # 安装下载的 deb 包
-          sudo dpkg -i zlib1g_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
-          sudo dpkg -i zlib1g-dev_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
+          # 强制安装 arm64 包（忽略架构警告）
+          sudo dpkg -i --force-depends zlib1g_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
+          sudo dpkg -i --force-depends zlib1g-dev_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
 
-          # 清理临时目录
           cd /
           rm -rf "$TEMP_DEB_DIR"
 
