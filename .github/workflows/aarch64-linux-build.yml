@@ -10,29 +10,31 @@ on:
 jobs:
   build:
     name: 交叉编译 Linux aarch64
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04      # 使用 Ubuntu 22.04，其默认 GCC 11 交叉工具链可用且无 ICE
     steps:
       - name: 检出代码（包含子模块）
         uses: actions/checkout@v4
         with:
           submodules: 'true'
 
-      - name: 安装 GCC 12 交叉编译工具链并部署 arm64 版 zlib
+      - name: 安装 GCC 11 aarch64 交叉编译工具链并部署 zlib arm64 库
         run: |
           set -e
-          # 安装 GCC 12 交叉编译器及相关工具
+          # Ubuntu 22.04 默认提供 gcc-11-aarch64-linux-gnu
+          sudo apt-get update
           sudo apt-get install -y \
-            gcc-12-aarch64-linux-gnu \
-            g++-12-aarch64-linux-gnu \
+            gcc-11-aarch64-linux-gnu \
+            g++-11-aarch64-linux-gnu \
             binutils-aarch64-linux-gnu \
             libc6-dev-arm64-cross \
             ninja-build \
             wget
 
-          # 创建软链接以便直接使用 gcc-12 等名称（可选，但构建脚本会直接使用带版本号的编译器）
-          # 我们将在 build.sh 中显式指定编译器为 aarch64-linux-gnu-gcc-12
+          # 创建软链接使编译器可直接通过 aarch64-linux-gnu-gcc-11 调用
+          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-11 100
+          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-11 100
 
-          # 手动部署 zlib arm64 库
+          # 手动部署 zlib arm64 开发文件到 sysroot
           TEMP_DIR=$(mktemp -d)
           cd "$TEMP_DIR"
 
