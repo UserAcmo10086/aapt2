@@ -26,11 +26,11 @@ LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 # Linux sysroot（由 libc6-dev-arm64-cross 提供）
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 if [[ ! -d "${LINUX_SYSROOT}" ]]; then
-    echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在"
+    echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在，请安装 libc6-dev-arm64-cross"
     exit 1
 fi
 
-# GCC 版本目录（提供 crtbeginT.o、libgcc.a 等）
+# 动态探测 GCC 版本目录（包含 crtbeginT.o、libgcc.a 等）
 GCC_BASE="/usr/lib/gcc-cross/aarch64-linux-gnu"
 if [[ ! -d "${GCC_BASE}" ]]; then
     echo "错误：GCC 交叉编译器目录 ${GCC_BASE} 不存在，请安装 gcc-aarch64-linux-gnu"
@@ -44,12 +44,14 @@ if [[ -z "${GCC_VER_DIR}" ]]; then
 fi
 echo ">>> 使用 GCC 版本目录: ${GCC_VER_DIR}"
 
-# 编译标志
-COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} -fPIC -Wno-attributes -fcolor-diagnostics"
+# 编译标志：-B 告诉 Clang 去 GCC 目录寻找 crtbeginT.o 等启动文件
+COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT}"
+COMMON_FLAGS+=" -B${GCC_VER_DIR}"   # 关键！使启动文件可被找到
+COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
 
-# 链接器标志：静态链接，添加 GCC 库目录以确保找到 crtbeginT.o 和 libgcc
+# 链接器标志：静态链接，并添加 GCC 库目录（提供 libgcc.a）
 LINKER_FLAGS="-fuse-ld=lld -static -L${GCC_VER_DIR}"
 
 echo ">>> sysroot: ${LINUX_SYSROOT}"
