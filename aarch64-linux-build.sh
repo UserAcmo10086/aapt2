@@ -23,19 +23,26 @@ CLANG="${TOOLCHAIN}/bin/clang"
 CLANGXX="${TOOLCHAIN}/bin/clang++"
 LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 
-# Linux sysroot
+# Linux sysroot（由 libc6-dev-arm64-cross 提供）
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
-[[ ! -d "${LINUX_SYSROOT}" ]] && echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在" && exit 1
+if [[ ! -d "${LINUX_SYSROOT}" ]]; then
+    echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在，请安装 libc6-dev-arm64-cross"
+    exit 1
+fi
 
-# 动态探测 GCC 版本目录
+# 动态探测 GCC 版本目录（包含 crtbeginT.o、libgcc.a、libstdc++.a）
 GCC_BASE="/usr/lib/gcc-cross/aarch64-linux-gnu"
-[[ ! -d "${GCC_BASE}" ]] && echo "错误：GCC 交叉编译器目录 ${GCC_BASE} 不存在" && exit 1
-GCC_VER_DIR=$(find "${GCC_BASE}" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
-[[ -z "${GCC_VER_DIR}" ]] && echo "错误：未找到版本目录" && exit 1
-echo ">>> 使用 GCC 版本目录: ${GCC_VER_DIR}"
+if [[ ! -d "${GCC_BASE}" ]]; then
+    echo "错误：GCC 交叉编译器目录 ${GCC_BASE} 不存在，请安装 gcc-aarch64-linux-gnu"
+    exit 1
+fi
 
-# 设置库搜索路径环境变量（关键）
-export LIBRARY_PATH="${GCC_VER_DIR}:${LIBRARY_PATH}"
+GCC_VER_DIR=$(find "${GCC_BASE}" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
+if [[ -z "${GCC_VER_DIR}" ]]; then
+    echo "错误：在 ${GCC_BASE} 中未找到版本目录"
+    exit 1
+fi
+echo ">>> 使用 GCC 版本目录: ${GCC_VER_DIR}"
 
 # 编译标志
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
@@ -58,7 +65,7 @@ cmake -GNinja \
     -DCMAKE_C_FLAGS="${CFLAGS}" \
     -DCMAKE_CXX_FLAGS="${CXXFLAGS}" \
     -DCMAKE_EXE_LINKER_FLAGS="${LINKER_FLAGS}" \
-    -DCMAKE_LIBRARY_PATH="${GCC_VER_DIR}" \
+    -DGCC_VER_DIR="${GCC_VER_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DPNG_SHARED=OFF \
     -DZLIB_USE_STATIC_LIBS=ON \
@@ -71,6 +78,10 @@ cmake -GNinja \
 echo ">>> 开始编译 aapt2..."
 ninja -C "${BUILD_DIR}" aapt2
 
-[[ -f "${LLVM_STRIP}" ]] && "${LLVM_STRIP}" --strip-unneeded "${BUILD_DIR}/bin/aapt2"
+if [[ -f "${LLVM_STRIP}" ]]; then
+    echo ">>> 剥离符号..."
+    "${LLVM_STRIP}" --strip-unneeded "${BUILD_DIR}/bin/aapt2"
+fi
+
 echo ">>> 构建完成！"
 file "${BUILD_DIR}/bin/aapt2"
