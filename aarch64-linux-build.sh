@@ -30,7 +30,7 @@ if [[ ! -d "${LINUX_SYSROOT}" ]]; then
     exit 1
 fi
 
-# 动态探测 GCC 版本目录（包含 crtbeginT.o、libgcc.a、libstdc++.a）
+# 动态探测 GCC 版本目录
 GCC_BASE="/usr/lib/gcc-cross/aarch64-linux-gnu"
 if [[ ! -d "${GCC_BASE}" ]]; then
     echo "错误：GCC 交叉编译器目录 ${GCC_BASE} 不存在"
@@ -44,14 +44,17 @@ if [[ -z "${GCC_VER_DIR}" ]]; then
 fi
 echo ">>> 使用 GCC 版本目录: ${GCC_VER_DIR}"
 
-# 编译标志：-B 提供启动文件搜索路径
+# 编译标志
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} -B${GCC_VER_DIR}"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
 
-# 链接器标志：静态链接，添加 GCC 库目录供 Clang 查找 libgcc 和 libstdc++
+# 链接器标志：静态链接，添加 GCC 库目录
 LINKER_FLAGS="-fuse-ld=lld -static -L${GCC_VER_DIR}"
+
+# 仅对 C++ 链接添加显式 libstdc++.a 依赖，避免影响 C 测试
+CXX_STANDARD_LIBRARIES="-l:libstdc++.a"
 
 echo ">>> sysroot: ${LINUX_SYSROOT}"
 echo ">>> 开始 CMake 配置..."
@@ -65,6 +68,7 @@ cmake -GNinja \
     -DCMAKE_C_FLAGS="${CFLAGS}" \
     -DCMAKE_CXX_FLAGS="${CXXFLAGS}" \
     -DCMAKE_EXE_LINKER_FLAGS="${LINKER_FLAGS}" \
+    -DCMAKE_CXX_STANDARD_LIBRARIES="${CXX_STANDARD_LIBRARIES}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DPNG_SHARED=OFF \
     -DZLIB_USE_STATIC_LIBS=ON \
