@@ -13,8 +13,9 @@ set(CMAKE_CXX_STANDARD 20)
 
 enable_language(ASM)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics -fPIC -Wno-attributes -std=gnu11")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics -fPIC -Wno-attributes -std=gnu++2a")
+# 全局编译标志：将 -fcolor-diagnostics 替换为 GCC 兼容的 -fdiagnostics-color=always
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -fPIC -Wno-attributes -std=gnu11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always -fPIC -Wno-attributes -std=gnu++2a")
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
 set(TOOLS_VERSION 35.0.2)
@@ -29,7 +30,7 @@ set(CMAKE_USE_PTHREADS_INIT TRUE CACHE BOOL "Use pthreads" FORCE)
 set(Threads_FOUND TRUE CACHE BOOL "Threads found" FORCE)
 set(CMAKE_THREAD_LIBS_INIT "-lpthread" CACHE STRING "Thread library" FORCE)
 
-# 强制指定 zlib 路径（路径已修正为 sysroot 下的真实目录）
+# 强制指定 zlib 路径（指向 sysroot 内的正确位置）
 set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
 set(ZLIB_LIBRARIES /usr/aarch64-linux-gnu/lib/libz.a CACHE FILEPATH "" FORCE)
 set(ZLIB_INCLUDE_DIR /usr/aarch64-linux-gnu/include CACHE PATH "" FORCE)
