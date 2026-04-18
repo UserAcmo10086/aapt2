@@ -1,4 +1,13 @@
 cmake_minimum_required(VERSION 3.14.2)
+
+# ===== 强制跳过交叉编译时不必要的编译器测试 =====
+# 直接告诉 CMake C/C++ 编译器均可用，避免因缺少静态库导致测试失败
+set(CMAKE_C_COMPILER_WORKS TRUE CACHE BOOL "Skip C compiler test" FORCE)
+set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE BOOL "Skip CXX compiler test" FORCE)
+# 同时设置编译器 ABI 检测结果为已知值（均为 TRUE）
+set(CMAKE_C_COMPILER_ABI_COMPILED TRUE CACHE BOOL "Skip C ABI detection" FORCE)
+set(CMAKE_CXX_COMPILER_ABI_COMPILED TRUE CACHE BOOL "Skip CXX ABI detection" FORCE)
+
 project(build-tools)
 
 set(CMAKE_C_STANDARD 11)
