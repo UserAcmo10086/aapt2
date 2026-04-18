@@ -23,14 +23,14 @@ CLANG="${TOOLCHAIN}/bin/clang"
 CLANGXX="${TOOLCHAIN}/bin/clang++"
 LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 
-# Linux sysroot
+# Linux sysroot（由 libc6-dev-arm64-cross 提供）
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 if [[ ! -d "${LINUX_SYSROOT}" ]]; then
     echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在"
     exit 1
 fi
 
-# 动态探测 GCC 版本目录
+# 动态探测 GCC 版本目录（包含 crtbeginT.o、libstdc++.a 等）
 GCC_BASE="/usr/lib/gcc-cross/aarch64-linux-gnu"
 if [[ ! -d "${GCC_BASE}" ]]; then
     echo "错误：GCC 交叉编译器目录 ${GCC_BASE} 不存在"
@@ -44,14 +44,14 @@ if [[ -z "${GCC_VER_DIR}" ]]; then
 fi
 echo ">>> 使用 GCC 版本目录: ${GCC_VER_DIR}"
 
-# 编译标志
+# 编译标志：-B 使 Clang 在 GCC 目录查找启动文件，sysroot 提供标准头文件和库
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} -B${GCC_VER_DIR}"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
 
-# 链接器标志：显式指定使用 libstdc++ 并添加库路径
-LINKER_FLAGS="-fuse-ld=lld -static -stdlib=libstdc++ -L${GCC_VER_DIR}"
+# 链接器标志：静态链接，显式指定 libstdc++.a 的路径（:filename 语法）
+LINKER_FLAGS="-fuse-ld=lld -static -L${GCC_VER_DIR} -l:libstdc++.a"
 
 echo ">>> sysroot: ${LINUX_SYSROOT}"
 echo ">>> 开始 CMake 配置..."
