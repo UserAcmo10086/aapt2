@@ -44,4 +44,4 @@ jobs:
              find /usr -path "/usr/local" -prune -o -name "crtend.o" -print 2>/dev/null
              find /usr -path "/usr/local" -prune -o -name "crt1.o" -print 2>/dev/null
              find /usr -path "/usr/local" -prune -o -name "libz.a" -print 2>/dev/null
-
+             find /usr -path "/usr/local" -prune -o -name "zlib.h" -print 2>/dev/null
