@@ -1,0 +1,44 @@
+name: 环境检测
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  build:
+    name: 构建 Linux aarch64
+    runs-on: ubuntu-latest
+    steps:
+    
+      - name: 安装 NDK r25c
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r25c
+          add-to-path: false
+
+      - name: 下载并安装 protoc
+        run: |
+          wget https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip
+          sudo unzip -j protoc-*.zip bin/protoc -d /usr/local/bin/
+          sudo chmod +x /usr/local/bin/protoc
+
+      - name: 安装 AArch64 交叉编译库
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+      - name: 环境检查
+        env:
+          ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
+          PROTOC_PATH: /usr/local/bin/protoc
+          LINUX_SYSROOT: /usr/aarch64-linux-gnu
+        run: bash ./aarch64-linux-build.sh
+             find /usr -name "libstdc++.a" 2>/dev/null
+
+
+
+
+
