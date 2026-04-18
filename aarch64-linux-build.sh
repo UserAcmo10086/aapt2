@@ -28,11 +28,9 @@ if [[ ! -f "${ORIG_CMAKE}" ]]; then
     exit 1
 fi
 
-# 临时替换 CMakeLists.txt
 mv "${ORIG_CMAKE}" "${ORIG_CMAKE}.bak"
 cp "${TARGET_CMAKE}" "${ORIG_CMAKE}"
 
-# 定义恢复函数，确保脚本退出时恢复原始文件
 restore_cmake() {
     if [[ -f "${ORIG_CMAKE}.bak" ]]; then
         mv "${ORIG_CMAKE}.bak" "${ORIG_CMAKE}"
@@ -40,13 +38,31 @@ restore_cmake() {
 }
 trap restore_cmake EXIT
 
-# 配置 CMake 参数
+# 配置编译器路径
 CMAKE_C_COMPILER="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
 CMAKE_CXX_COMPILER="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
-SYSROOT="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${SYSROOT}"
 
+# Linux AArch64 交叉编译 sysroot（由 gcc-aarch64-linux-gnu/libc6-dev-arm64-cross 提供）
+# 若未安装，可在 GitHub Actions 中通过 apt 安装，或手动指定路径。
+LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
+
+if [[ ! -d "${LINUX_SYSROOT}" ]]; then
+    echo "警告：Linux sysroot 目录 ${LINUX_SYSROOT} 不存在，尝试使用 NDK sysroot 但可能缺少 GNU 库文件。"
+    # 降级使用 NDK sysroot，并补充库路径（可能仍会失败）
+    SYSROOT="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+    EXTRA_LDFLAGS="-L${SYSROOT}/usr/lib/aarch64-linux-gnu -L${SYSROOT}/usr/lib"
+else
+    SYSROOT="${LINUX_SYSROOT}"
+    EXTRA_LDFLAGS=""
+fi
+
+COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${SYSROOT}"
+# 强制静态链接，并指定 crt 文件路径（确保链接器能找到 crt1.o 等）
+LINKER_FLAGS="-fuse-ld=lld -static -L${SYSROOT}/usr/lib -L${SYSROOT}/lib"
+
+echo ">>> 使用的 sysroot: ${SYSROOT}"
 echo ">>> 开始配置 CMake (目标: Linux aarch64)..."
+
 cmake -GNinja \
     -B "${BUILD_DIR}" \
     -DCMAKE_SYSTEM_NAME=Linux \
@@ -55,7 +71,7 @@ cmake -GNinja \
     -DCMAKE_CXX_COMPILER="${CMAKE_CXX_COMPILER}" \
     -DCMAKE_C_FLAGS="${COMMON_FLAGS} -fPIC -Wno-attributes -std=gnu11 -fcolor-diagnostics" \
     -DCMAKE_CXX_FLAGS="${COMMON_FLAGS} -fPIC -Wno-attributes -std=gnu++2a -fcolor-diagnostics" \
-    -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld -static" \
+    -DCMAKE_EXE_LINKER_FLAGS="${LINKER_FLAGS}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DPNG_SHARED=OFF \
     -DZLIB_USE_STATIC_LIBS=ON \
