@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # 创建所需目录并复制辅助文件
 mkdir -p "submodules/incremental_delivery/sysprop/include/"
 cp "misc/IncrementalProperties.sysprop.h" "submodules/incremental_delivery/sysprop/include/"
@@ -18,9 +20,9 @@ sed -i "$ressourcesPattern" "submodules/base/tools/aapt2/ApkInfo.proto"
 sed -i "$ressourcesPattern" "submodules/base/tools/aapt2/ResourcesInternal.proto"
 
 # 应用原有补丁
-git apply "patches/apktool_ibotpeaches.patch"
-git apply "patches/protobuf.patch"
-git apply "patches/32bsystem_on_armv8.patch"
+git apply "patches/apktool_ibotpeaches.patch" || true
+git apply "patches/protobuf.patch" || true
+git apply "patches/32bsystem_on_armv8.patch" || true
 
 # ===== 修复 StringStream.cpp 缺失的头文件 =====
 STRINGSTREAM_FILE="submodules/base/tools/aapt2/io/StringStream.cpp"
@@ -29,18 +31,19 @@ if [[ -f "$STRINGSTREAM_FILE" ]]; then
     echo "已修复 StringStream.cpp 缺失的头文件"
 fi
 
-# ===== 修复 ResourceTable.cpp 中的泛型 lambda ICE =====
+# ===== 精确修复 ResourceTable.cpp 中的泛型 lambda =====
 RESOURCETABLE_FILE="submodules/base/tools/aapt2/ResourceTable.cpp"
 if [[ -f "$RESOURCETABLE_FILE" ]]; then
-    perl -0777 -pi -e 's|auto\s+it\s*=\s*std::lower_bound\s*\(\s*el\.begin\s*\(\s*\)\s*,\s*el\.end\s*\(\s*\)\s*,\s*value\s*,\s*\[&\s*\]\s*\(\s*auto\s*&\s*lhs\s*,\s*auto\s*&\s*rhs\s*\)\s*\{\s*return\s+Comparer::operator\s*\(\s*\)\s*\(\s*lhs\s*,\s*rhs\s*\)\s*;\s*\}\s*\)\s*;|auto it = std::lower_bound(el.begin(), el.end(), value, Comparer());|gs' "$RESOURCETABLE_FILE"
-    echo "已修复 ResourceTable.cpp 中的泛型 lambda"
+    # 单行精确替换（源码中只有这一处调用）
+    sed -i 's/auto it = std::lower_bound(el.begin(), el.end(), value, \[&\](auto& lhs, auto& rhs) { return Comparer::operator()(lhs, rhs); });/auto it = std::lower_bound(el.begin(), el.end(), value, Comparer());/' "$RESOURCETABLE_FILE"
+    echo "已修复 ResourceTable.cpp 的 lambda"
 fi
 
-# ===== 修复 logging.cpp 中的 Android 特有 __builtin_available =====
+# ===== 修复 logging.cpp 中的 __builtin_available 错误 =====
 LOGGING_FILE="submodules/libbase/logging.cpp"
 if [[ -f "$LOGGING_FILE" ]]; then
-    # 将所有 __builtin_available(android 30, *) 替换为 false
-    perl -pi -e 's/__builtin_available\s*\(\s*android\s+\d+\s*,\s*\*\s*\)/false/g' "$LOGGING_FILE"
+    # 将 __builtin_available(android 30, *) 替换为 false
+    sed -i 's/__builtin_available(android [0-9]*, \*)/false/g' "$LOGGING_FILE"
     echo "已修复 logging.cpp 中的 __builtin_available"
 fi
 
