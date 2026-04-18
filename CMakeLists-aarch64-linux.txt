@@ -1,26 +1,37 @@
+# ============================================================================
+# CMakeLists-aarch64-linux.txt
+# 功能: 用于 aarch64 Linux 平台交叉编译 aapt2 的 CMake 配置文件
+# 说明: 移除了所有 Android 特定逻辑，强制启用 ASM，静态链接
+# ============================================================================
+
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools-linux-aarch64)
 
+# 设置 C/C++ 标准
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-# 强制启用 ASM 语言（aarch64 必须）
+# 目标架构为 aarch64，必须启用 ASM 语言支持
 enable_language(ASM)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics -fPIC -Wno-attributes -std=gnu11")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics -fPIC -Wno-attributes -std=gnu++2a")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+# 全局编译选项（环境变量已传递 -static -fPIC，此处仅添加警告抑制和诊断颜色）
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics -Wno-attributes")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics -Wno-attributes")
 
+# 平台工具版本（与上游保持一致）
 set(TOOLS_VERSION 35.0.2)
 set(SRC ${PROJECT_SOURCE_DIR}/submodules)
 
+# 启用 64 位 off_t 支持
 add_definitions(-D_FILE_OFFSET_BITS=64)
 
+# Protobuf 构建选项：强制使用静态库，禁用测试和共享库
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "" FORCE)
 
+# 添加第三方依赖库子目录（顺序按照依赖关系，原项目已验证）
 add_subdirectory(submodules/boringssl EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/fmtlib EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/pcre EXCLUDE_FROM_ALL)
@@ -30,4 +41,5 @@ add_subdirectory(submodules/expat/expat EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/protobuf EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
+# 添加构建工具目录（包含 aapt2 的 CMake 定义）
 add_subdirectory(cmake)
