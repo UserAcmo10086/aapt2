@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14.2)
 
-# ===== 强制跳过交叉编译时不必要的编译器测试 =====
+# 强制跳过交叉编译时的编译器测试（避免因静态库缺失报错）
 set(CMAKE_C_COMPILER_WORKS TRUE CACHE BOOL "Skip C compiler test" FORCE)
 set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE BOOL "Skip CXX compiler test" FORCE)
 set(CMAKE_C_COMPILER_ABI_COMPILED TRUE CACHE BOOL "Skip C ABI detection" FORCE)
@@ -11,32 +11,28 @@ project(build-tools)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-# 启用汇编语言支持
 enable_language(ASM)
 
-# 全局编译标志
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics -fPIC -Wno-attributes -std=gnu11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics -fPIC -Wno-attributes -std=gnu++2a")
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
-# 平台工具版本
 set(TOOLS_VERSION 35.0.2)
 set(SRC ${PROJECT_SOURCE_DIR}/submodules)
 
 add_definitions(-D_FILE_OFFSET_BITS=64)
 
-# 强制设置 pthread 变量
+# 强制设置 pthread 变量，避免交叉编译检测失败
 set(THREADS_PREFER_PTHREAD_FLAG ON CACHE BOOL "Prefer -pthread flag" FORCE)
 set(CMAKE_HAVE_THREADS_LIBRARY TRUE CACHE BOOL "Have threads library" FORCE)
 set(CMAKE_USE_PTHREADS_INIT TRUE CACHE BOOL "Use pthreads" FORCE)
 set(Threads_FOUND TRUE CACHE BOOL "Threads found" FORCE)
 set(CMAKE_THREAD_LIBS_INIT "-lpthread" CACHE STRING "Thread library" FORCE)
 
-# ===== 强制指定 zlib 路径，跳过 find_package 查找 =====
-# 注意：ZLIB_INSTALL_DIR 在 CMake 命令行中通过 CMAKE_FIND_ROOT_PATH 传递
+# 强制指定 zlib 路径（直接指向通过 apt 安装的 arm64 版 libz.a）
 set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
-set(ZLIB_LIBRARIES /tmp/zlib-aarch64/lib/libz.a CACHE FILEPATH "" FORCE)
-set(ZLIB_INCLUDE_DIR /tmp/zlib-aarch64/include CACHE PATH "" FORCE)
+set(ZLIB_LIBRARIES /usr/lib/aarch64-linux-gnu/libz.a CACHE FILEPATH "" FORCE)
+set(ZLIB_INCLUDE_DIR /usr/include/aarch64-linux-gnu CACHE PATH "" FORCE)
 
 # protobuf 选项
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -44,7 +40,6 @@ set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "" FORCE)
 
-# 添加第三方子目录
 add_subdirectory(submodules/boringssl EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/fmtlib EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/pcre EXCLUDE_FROM_ALL)
@@ -54,5 +49,4 @@ add_subdirectory(submodules/expat/expat EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/protobuf EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
-# 构建 sdk-tools（包含 aapt2 目标）
 add_subdirectory(cmake)
