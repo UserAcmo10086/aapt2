@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# 使用 GCC 11 编译器（Ubuntu 22.04 默认，已通过 update-alternatives 设置）
 TARGET_TRIPLE="aarch64-linux-gnu"
 CC="${TARGET_TRIPLE}-gcc"
 CXX="${TARGET_TRIPLE}-g++"
@@ -62,8 +61,8 @@ cmake -GNinja \
     -DCMAKE_SYSTEM_PROCESSOR="aarch64" \
     -DCMAKE_C_COMPILER="${CC}" \
     -DCMAKE_CXX_COMPILER="${CXX}" \
-    -DCMAKE_C_FLAGS="-I${SYSROOT_BASE}/include" \
-    -DCMAKE_CXX_FLAGS="-I${SYSROOT_BASE}/include" \
+    -DCMAKE_C_FLAGS="-I${SYSROOT_BASE}/include -D__ANDROID__=0" \
+    -DCMAKE_CXX_FLAGS="-I${SYSROOT_BASE}/include -D__ANDROID__=0" \
     -DCMAKE_EXE_LINKER_FLAGS="-L${SYSROOT_BASE}/lib -static" \
     -DCMAKE_BUILD_TYPE="Release" \
     -DPNG_SHARED=OFF \
