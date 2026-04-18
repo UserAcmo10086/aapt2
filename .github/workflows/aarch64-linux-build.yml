@@ -17,14 +17,16 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: 安装 aarch64 交叉编译工具链
+      - name: 安装 aarch64 交叉编译工具链及 zlib 静态库
         run: |
+          sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
             binutils-aarch64-linux-gnu \
             libc6-dev-arm64-cross \
+            zlib1g-dev:arm64 \
             ninja-build
 
       - name: 获取 protoc 编译器
@@ -83,7 +85,7 @@ jobs:
       - name: 安装语义发布依赖
         run: npm install
 
-      - name: 导入 GPG 密钥（用于签名发布）
+      - name: 导入 GPG 密钥
         uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
