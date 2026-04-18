@@ -42,25 +42,20 @@ trap restore_cmake EXIT
 CMAKE_C_COMPILER="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
 CMAKE_CXX_COMPILER="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
 
-# Linux AArch64 交叉编译 sysroot（由 gcc-aarch64-linux-gnu/libc6-dev-arm64-cross 提供）
-# 若未安装，可在 GitHub Actions 中通过 apt 安装，或手动指定路径。
+# Linux AArch64 交叉编译 sysroot（由 libc6-dev-arm64-cross 提供）
+# 若未设置环境变量，使用默认路径
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 
 if [[ ! -d "${LINUX_SYSROOT}" ]]; then
-    echo "警告：Linux sysroot 目录 ${LINUX_SYSROOT} 不存在，尝试使用 NDK sysroot 但可能缺少 GNU 库文件。"
-    # 降级使用 NDK sysroot，并补充库路径（可能仍会失败）
-    SYSROOT="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-    EXTRA_LDFLAGS="-L${SYSROOT}/usr/lib/aarch64-linux-gnu -L${SYSROOT}/usr/lib"
-else
-    SYSROOT="${LINUX_SYSROOT}"
-    EXTRA_LDFLAGS=""
+    echo "错误：Linux sysroot 目录 ${LINUX_SYSROOT} 不存在，请安装 gcc-aarch64-linux-gnu 和 libc6-dev-arm64-cross。"
+    exit 1
 fi
 
-COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${SYSROOT}"
-# 强制静态链接，并指定 crt 文件路径（确保链接器能找到 crt1.o 等）
-LINKER_FLAGS="-fuse-ld=lld -static -L${SYSROOT}/usr/lib -L${SYSROOT}/lib"
+COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT}"
+# 强制静态链接，并指定库路径确保 lld 能找到 crt*.o 和 libc.a
+LINKER_FLAGS="-fuse-ld=lld -static -L${LINUX_SYSROOT}/usr/lib -L${LINUX_SYSROOT}/lib"
 
-echo ">>> 使用的 sysroot: ${SYSROOT}"
+echo ">>> 使用的 sysroot: ${LINUX_SYSROOT}"
 echo ">>> 开始配置 CMake (目标: Linux aarch64)..."
 
 cmake -GNinja \
