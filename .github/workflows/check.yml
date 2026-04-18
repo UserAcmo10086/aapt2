@@ -17,7 +17,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
       - name: 环境检查
-        run: find /usr -path "/usr/local" -prune -o -name "libstdc++.a" -print 2>/dev/null
+        run: |
+             find /usr -path "/usr/local" -prune -o -name "libstdc++.a" -print 2>/dev/null
              find /usr -path "/usr/local" -prune -o -name "libgcc.a" -print 2>/dev/null
              find /usr -path "/usr/local" -prune -o -name "crtbeginT.o" -print 2>/dev/null
              find /usr -path "/usr/local" -prune -o -name "crtend.o" -print 2>/dev/null
