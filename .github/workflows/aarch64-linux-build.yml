@@ -1,7 +1,8 @@
+
 name: 构建 Linux aarch64 版 aapt2
 
 on:
-  workflow_dispatch:          # 允许手动触发工作流
+  workflow_dispatch:          # 允许手动触发
   push:
     branches:
       - main
@@ -17,16 +18,15 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: 添加 arm64 架构支持并安装交叉编译工具链及依赖
+      - name: 安装 aarch64 交叉编译工具链及依赖库
         run: |
-          sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
             binutils-aarch64-linux-gnu \
             libc6-dev-arm64-cross \
-            zlib1g-dev:arm64 \
+            zlib1g-dev-arm64-cross \
             ninja-build
 
       - name: 获取 protoc 编译器
@@ -49,7 +49,7 @@ jobs:
         with:
           name: aapt2-linux-aarch64
           path: build_aarch64_linux/bin/aapt2
-          archive: false    # 直接上传文件，不压缩打包
+          archive: false
 
   release:
     needs: build
