@@ -30,8 +30,23 @@ if [[ ! -d "${LINUX_SYSROOT}" ]]; then
     exit 1
 fi
 
-# 动态获取 GCC 交叉编译器的库目录（包含 crtbeginT.o、libgcc.a 等）
-# 通过 aarch64-linux-gnu-gcc 查询，若未安装则报错
+# 动态查找 crt1.o, crti.o, crtn.o 位置（可能在 lib 或 usr/lib 下）
+find_file() {
+    local name=$1
+    local path
+    path=$(find "${LINUX_SYSROOT}" -name "${name}" -type f 2>/dev/null | head -1)
+    if [[ -z "${path}" ]]; then
+        echo "错误：在 ${LINUX_SYSROOT} 中未找到 ${name}"
+        exit 1
+    fi
+    echo "${path}"
+}
+
+CRT1=$(find_file "crt1.o")
+CRTI=$(find_file "crti.o")
+CRTN=$(find_file "crtn.o")
+
+# 获取 GCC 交叉编译器的库目录（包含 crtbeginT.o、libgcc.a 等）
 if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
     echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-aarch64-linux-gnu"
     exit 1
@@ -44,19 +59,13 @@ if [[ ! -d "${GCC_LIB_DIR}" ]]; then
 fi
 echo ">>> GCC 库目录: ${GCC_LIB_DIR}"
 
-# 检查必要的启动文件
-CRT1="${LINUX_SYSROOT}/usr/lib/crt1.o"
-CRTI="${LINUX_SYSROOT}/usr/lib/crti.o"
-CRTN="${LINUX_SYSROOT}/usr/lib/crtn.o"
 CRTBEGIN_T="${GCC_LIB_DIR}/crtbeginT.o"
 CRTEND="${GCC_LIB_DIR}/crtend.o"
 
-for f in "${CRT1}" "${CRTI}" "${CRTN}" "${CRTBEGIN_T}" "${CRTEND}"; do
-    if [[ ! -f "${f}" ]]; then
-        echo "错误：缺少启动文件 ${f}"
-        exit 1
-    fi
-done
+if [[ ! -f "${CRTBEGIN_T}" ]] || [[ ! -f "${CRTEND}" ]]; then
+    echo "错误：GCC 目录缺少 crtbeginT.o 或 crtend.o"
+    exit 1
+fi
 
 # 编译标志：目标 aarch64-linux-gnu，使用 Linux sysroot
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} -fPIC -Wno-attributes -fcolor-diagnostics"
@@ -66,10 +75,12 @@ CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
 # 链接器标志：完全静态，使用 -nostdlib 并手动指定所有组件
 LINKER_FLAGS="-fuse-ld=lld -static -nostdlib"
 LINKER_FLAGS+=" ${CRT1} ${CRTI} ${CRTBEGIN_T}"
-LINKER_FLAGS+=" -L${LINUX_SYSROOT}/usr/lib -L${LINUX_SYSROOT}/lib"
+# 库搜索路径
+LINKER_FLAGS+=" -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib"
 LINKER_FLAGS+=" -L${GCC_LIB_DIR}"
+# 标准库
 LINKER_FLAGS+=" -l:libc.a -l:libm.a -l:libdl.a -l:libpthread.a -l:librt.a"
-LINKER_FLAGS+=" -lgcc -lgcc_eh"   # 使用 GCC 运行时库
+LINKER_FLAGS+=" -lgcc -lgcc_eh"
 LINKER_FLAGS+=" ${CRTEND} ${CRTN}"
 
 echo ">>> 使用的 sysroot: ${LINUX_SYSROOT}"
