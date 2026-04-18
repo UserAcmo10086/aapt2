@@ -30,10 +30,14 @@ set(CMAKE_USE_PTHREADS_INIT TRUE CACHE BOOL "Use pthreads" FORCE)
 set(Threads_FOUND TRUE CACHE BOOL "Threads found" FORCE)
 set(CMAKE_THREAD_LIBS_INIT "-lpthread" CACHE STRING "Thread library" FORCE)
 
-# 强制指定 zlib 路径（指向 sysroot 内的正确位置）
+# ===== 强制指定 zlib 路径（解决 FindZLIB 找不到库的问题） =====
+# 同时设置 ZLIB_LIBRARY (FindZLIB.cmake 需要的) 和 ZLIB_LIBRARIES (常用变量)
 set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
-set(ZLIB_LIBRARIES /usr/aarch64-linux-gnu/lib/libz.a CACHE FILEPATH "" FORCE)
+set(ZLIB_LIBRARY /usr/aarch64-linux-gnu/lib/libz.a CACHE FILEPATH "" FORCE)
+set(ZLIB_LIBRARIES ${ZLIB_LIBRARY} CACHE STRING "" FORCE)
 set(ZLIB_INCLUDE_DIR /usr/aarch64-linux-gnu/include CACHE PATH "" FORCE)
+# 标记为已找到，跳过系统搜索
+mark_as_advanced(ZLIB_LIBRARY ZLIB_INCLUDE_DIR)
 
 # protobuf 选项
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
