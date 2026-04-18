@@ -1,4 +1,3 @@
-
 name: 构建 Linux aarch64 版 aapt2
 
 on:
@@ -18,7 +17,7 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: 安装 aarch64 交叉编译工具链及依赖库
+      - name: 安装 aarch64 交叉编译工具链
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -26,7 +25,6 @@ jobs:
             g++-aarch64-linux-gnu \
             binutils-aarch64-linux-gnu \
             libc6-dev-arm64-cross \
-            zlib1g-dev-arm64-cross \
             ninja-build
 
       - name: 获取 protoc 编译器
