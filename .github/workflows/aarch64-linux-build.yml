@@ -17,7 +17,7 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: 安装交叉编译工具链并手动部署 arm64 版 zlib 到 sysroot
+      - name: 安装交叉编译工具链并部署 arm64 版 zlib 到 sysroot
         run: |
           set -e
           # 安装交叉编译工具链（均为 amd64 包，无需 update）
@@ -40,7 +40,7 @@ jobs:
           dpkg-deb -x zlib1g_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb zlib1g
           dpkg-deb -x zlib1g-dev_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb zlib1g-dev
 
-          # 复制文件到 sysroot
+          # 复制文件到交叉编译根目录 /usr/aarch64-linux-gnu
           sudo cp -v zlib1g-dev/usr/include/*.h /usr/aarch64-linux-gnu/include/
           sudo cp -v zlib1g/usr/lib/aarch64-linux-gnu/libz.so.* /usr/aarch64-linux-gnu/lib/
           sudo cp -v zlib1g-dev/usr/lib/aarch64-linux-gnu/libz.a /usr/aarch64-linux-gnu/lib/
@@ -48,11 +48,6 @@ jobs:
           cd /usr/aarch64-linux-gnu/lib
           sudo ln -sf libz.so.1.3 libz.so.1
           sudo ln -sf libz.so.1 libz.so
-
-          # ===== 修复 sysroot 头文件路径映射 =====
-          # 创建 usr/include 符号链接指向 ../include，解决 --sysroot 下 #include_next 问题
-          sudo mkdir -p /usr/aarch64-linux-gnu/usr
-          sudo ln -sf ../include /usr/aarch64-linux-gnu/usr/include
 
           cd /
           rm -rf "$TEMP_DIR"
@@ -69,7 +64,6 @@ jobs:
       - name: 配置并编译 aapt2
         env:
           PROTOC_PATH: /usr/local/bin/protoc
-          SYSROOT: /usr/aarch64-linux-gnu
         run: bash ./aarch64-linux-build.sh
 
       - name: 上传构建产物
