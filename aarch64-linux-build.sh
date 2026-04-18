@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-# 使用 GCC 12 版本以避免 ICE
+# 使用 GCC 11 编译器（Ubuntu 22.04 默认，已通过 update-alternatives 设置）
 TARGET_TRIPLE="aarch64-linux-gnu"
-CC="${TARGET_TRIPLE}-gcc-12"
-CXX="${TARGET_TRIPLE}-g++-12"
+CC="${TARGET_TRIPLE}-gcc"
+CXX="${TARGET_TRIPLE}-g++"
 BUILD_DIR="build_aarch64_linux"
 SYSROOT_BASE="/usr/aarch64-linux-gnu"
 
@@ -13,7 +13,7 @@ help() {
     echo "用法: $script_name"
     echo
     echo "环境要求:"
-    echo "  - 必须安装 gcc-12-aarch64-linux-gnu 和 g++-12-aarch64-linux-gnu"
+    echo "  - 必须安装 aarch64-linux-gnu 交叉编译工具链 (GCC 11)"
     echo "  - 必须设置 PROTOC_PATH 环境变量（指向 protoc 可执行文件）"
     echo
     echo "示例:"
@@ -27,12 +27,12 @@ if [[ -z "${PROTOC_PATH}" ]]; then
 fi
 
 if ! command -v ${CC} &> /dev/null; then
-    echo "错误: 未找到 ${CC}，请安装 gcc-12-${TARGET_TRIPLE}"
+    echo "错误: 未找到 ${CC}"
     exit 1
 fi
 
 if ! command -v ${CXX} &> /dev/null; then
-    echo "错误: 未找到 ${CXX}，请安装 g++-12-${TARGET_TRIPLE}"
+    echo "错误: 未找到 ${CXX}"
     exit 1
 fi
 
@@ -77,7 +77,6 @@ cmake -GNinja \
 echo "开始编译..."
 ninja -C "${BUILD_DIR}" aapt2
 
-# 使用 GCC 12 对应的 strip
 ${TARGET_TRIPLE}-strip --strip-unneeded "${BUILD_DIR}/bin/aapt2"
 
 echo "构建完成！"
