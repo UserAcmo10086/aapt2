@@ -1,3 +1,4 @@
+
 #!/bin/bash
 set -e
 
@@ -50,25 +51,38 @@ if [[ ! -d "${LINUX_SYSROOT}" ]]; then
     exit 1
 fi
 
-# 使用 NDK 自带的 compiler-rt 和 libunwind，避免依赖 GCC 运行时
-# 添加 compiler-rt 库路径（位于 NDK 中）
+# 获取 compiler-rt 资源目录
 NDK_CLANG_RESOURCE_DIR="$("${CMAKE_C_COMPILER}" --print-resource-dir)"
-COMPILER_RT_LIB="${NDK_CLANG_RESOURCE_DIR}/lib/linux"
+# compiler-rt 库的实际路径（包含 aarch64 子目录）
+COMPILER_RT_LIB="${NDK_CLANG_RESOURCE_DIR}/lib/linux/aarch64"
+
+if [[ ! -d "${COMPILER_RT_LIB}" ]]; then
+    echo "错误：compiler-rt 库目录不存在: ${COMPILER_RT_LIB}"
+    exit 1
+fi
 
 echo ">>> compiler-rt 库路径: ${COMPILER_RT_LIB}"
 
-# 基础编译标志：目标三元组 + sysroot + 使用 compiler-rt
+# 为静态链接创建符号链接 crtbeginT.o -> crtbegin.o
+if [[ -f "${COMPILER_RT_LIB}/crtbegin.o" ]] && [[ ! -f "${COMPILER_RT_LIB}/crtbeginT.o" ]]; then
+    echo ">>> 创建符号链接 crtbeginT.o -> crtbegin.o"
+    ln -sf crtbegin.o "${COMPILER_RT_LIB}/crtbeginT.o"
+fi
+
+# 基础编译标志：目标三元组 + sysroot + 使用 compiler-rt 和 libunwind
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT}"
 COMMON_FLAGS+=" -rtlib=compiler-rt -unwindlib=libunwind"
 
-# 静态链接标志：链接器使用 lld，静态链接，并指定库搜索路径
+# 静态链接标志
 LINKER_FLAGS="-fuse-ld=lld -static"
+# 添加 sysroot 库路径
 LINKER_FLAGS+=" -L${LINUX_SYSROOT}/usr/lib -L${LINUX_SYSROOT}/lib"
+# 添加 compiler-rt 库路径
 LINKER_FLAGS+=" -L${COMPILER_RT_LIB}"
-# 显式链接 compiler-rt 内置函数
+# 显式链接 compiler-rt builtins 静态库
 LINKER_FLAGS+=" -l:libclang_rt.builtins-aarch64.a"
 
-# 添加 GCC 库目录以备不时之需（如果存在）
+# 备选 GCC 库目录（如果需要）
 if command -v aarch64-linux-gnu-gcc &> /dev/null; then
     GCC_LIB_DIR=$(aarch64-linux-gnu-gcc -print-libgcc-file-name | xargs dirname)
     echo ">>> 备用 GCC 库目录: ${GCC_LIB_DIR}"
