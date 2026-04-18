@@ -30,14 +30,29 @@ if [[ ! -d "${LINUX_SYSROOT}" ]]; then
     exit 1
 fi
 
-# 动态探测 GCC 版本目录（包含 crtbeginT.o 等）
+# 动态查找 crt1.o, crti.o, crtn.o
+find_file_in_sysroot() {
+    local name=$1
+    local path
+    path=$(find "${LINUX_SYSROOT}" -name "${name}" -type f 2>/dev/null | head -1)
+    if [[ -z "${path}" ]]; then
+        echo "错误：在 ${LINUX_SYSROOT} 中未找到 ${name}"
+        exit 1
+    fi
+    echo "${path}"
+}
+
+CRT1=$(find_file_in_sysroot "crt1.o")
+CRTI=$(find_file_in_sysroot "crti.o")
+CRTN=$(find_file_in_sysroot "crtn.o")
+
+# GCC 版本目录（包含 crtbeginT.o, libgcc.a 等）
 GCC_BASE="/usr/lib/gcc-cross/aarch64-linux-gnu"
 if [[ ! -d "${GCC_BASE}" ]]; then
     echo "错误：GCC 交叉编译器目录 ${GCC_BASE} 不存在，请安装 gcc-aarch64-linux-gnu"
     exit 1
 fi
 
-# 选择第一个数字版本目录（如 12、13）
 GCC_VER_DIR=$(find "${GCC_BASE}" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
 if [[ -z "${GCC_VER_DIR}" ]]; then
     echo "错误：在 ${GCC_BASE} 中未找到版本目录"
@@ -45,14 +60,10 @@ if [[ -z "${GCC_VER_DIR}" ]]; then
 fi
 echo ">>> 使用 GCC 版本目录: ${GCC_VER_DIR}"
 
-# 检查必要的启动文件
-CRT1="${LINUX_SYSROOT}/usr/lib/crt1.o"
-CRTI="${LINUX_SYSROOT}/usr/lib/crti.o"
-CRTN="${LINUX_SYSROOT}/usr/lib/crtn.o"
 CRTBEGIN_T="${GCC_VER_DIR}/crtbeginT.o"
 CRTEND="${GCC_VER_DIR}/crtend.o"
 
-for f in "${CRT1}" "${CRTI}" "${CRTN}" "${CRTBEGIN_T}" "${CRTEND}"; do
+for f in "${CRTBEGIN_T}" "${CRTEND}"; do
     if [[ ! -f "${f}" ]]; then
         echo "错误：缺少启动文件 ${f}"
         exit 1
@@ -67,13 +78,16 @@ CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
 # 链接器标志：完全静态，手动指定所有启动文件和库
 LINKER_FLAGS="-fuse-ld=lld -static -nostdlib"
 LINKER_FLAGS+=" ${CRT1} ${CRTI} ${CRTBEGIN_T}"
-LINKER_FLAGS+=" -L${LINUX_SYSROOT}/usr/lib -L${LINUX_SYSROOT}/lib"
+# 动态获取 sysroot 内的库目录
+LIB_PATHS=$(find "${LINUX_SYSROOT}" -type d \( -name "lib" -o -name "usr/lib" \) -printf " -L%p")
+LINKER_FLAGS+="${LIB_PATHS}"
 LINKER_FLAGS+=" -L${GCC_VER_DIR}"
 LINKER_FLAGS+=" -lc -lm -ldl -lpthread -lrt"
 LINKER_FLAGS+=" -lgcc -lgcc_eh"
 LINKER_FLAGS+=" ${CRTEND} ${CRTN}"
 
 echo ">>> sysroot: ${LINUX_SYSROOT}"
+echo ">>> crt1.o: ${CRT1}"
 echo ">>> 开始 CMake 配置..."
 
 cmake -GNinja \
