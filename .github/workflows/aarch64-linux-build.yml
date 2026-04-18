@@ -17,14 +17,16 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: 安装 aarch64 交叉编译工具链及静态库
+      - name: 添加 arm64 架构支持并安装交叉编译工具链及依赖
         run: |
+          sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
             binutils-aarch64-linux-gnu \
             libc6-dev-arm64-cross \
+            zlib1g-dev:arm64 \
             ninja-build
 
       - name: 获取 protoc 编译器
