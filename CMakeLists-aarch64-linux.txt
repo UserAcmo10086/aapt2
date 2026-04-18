@@ -1,34 +1,26 @@
-# CMake 最低版本要求
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools-linux-aarch64)
 
-# 设置 C/C++ 标准
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-# 始终启用汇编语言支持（因为我们将目标限定为 aarch64，使用 ASM 即可）
+# 强制启用 ASM 语言（aarch64 必须）
 enable_language(ASM)
 
-# 全局编译选项（移除 Android 特定标志，保留通用优化）
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics -fPIC -Wno-attributes -std=gnu11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics -fPIC -Wno-attributes -std=gnu++2a")
-# 静态链接所有依赖，生成独立可执行文件
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 
-# 平台工具版本（与上游保持一致）
 set(TOOLS_VERSION 35.0.2)
 set(SRC ${PROJECT_SOURCE_DIR}/submodules)
 
-# 64 位 off_t 支持
 add_definitions(-D_FILE_OFFSET_BITS=64)
 
-# protobuf 构建选项（强制静态库，禁用测试和共享库）
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "" FORCE)
 
-# 添加第三方库子目录（顺序可能影响依赖关系，但原项目已验证）
 add_subdirectory(submodules/boringssl EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/fmtlib EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/pcre EXCLUDE_FROM_ALL)
@@ -38,8 +30,4 @@ add_subdirectory(submodules/expat/expat EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/protobuf EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
-# 引入构建工具脚本目录（包含 aapt2 的 CMake 定义）
 add_subdirectory(cmake)
-
-# 注意：原 Android 版本根据 ANDROID_ABI 条件启用 ASM 或 NASM，此处我们固定目标为 aarch64，
-# 因此直接启用 ASM 语言即可。不再需要 Android 特定的 CMAKE_ANDROID_* 变量。
