@@ -30,13 +30,25 @@ if [[ ! -d "${LINUX_SYSROOT}" ]]; then
     exit 1
 fi
 
-# 编译标志：目标 aarch64-linux-gnu，使用 Linux sysroot
+# 获取 GCC 库目录（提供 crtbeginT.o、libgcc.a 等）
+if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
+    echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-aarch64-linux-gnu"
+    exit 1
+fi
+GCC_LIB_DIR=$(aarch64-linux-gnu-gcc -print-file-name=crtbeginT.o | xargs dirname)
+if [[ ! -d "${GCC_LIB_DIR}" ]]; then
+    echo "错误：无法确定 GCC 库目录"
+    exit 1
+fi
+echo ">>> GCC 库目录: ${GCC_LIB_DIR}"
+
+# 编译标志
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
 
-# 链接器标志：静态链接，让 Clang 自动处理启动文件和标准库
-LINKER_FLAGS="-fuse-ld=lld -static"
+# 链接器标志：静态链接，添加 GCC 库路径
+LINKER_FLAGS="-fuse-ld=lld -static -L${GCC_LIB_DIR}"
 
 echo ">>> sysroot: ${LINUX_SYSROOT}"
 echo ">>> 开始 CMake 配置..."
