@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# 检查必要的环境变量
+# 检查环境变量
 if [[ -z "${ANDROID_NDK}" ]]; then
     echo "错误：请设置环境变量 ANDROID_NDK 指向 NDK r25c 根目录。"
     exit 1
@@ -12,136 +12,80 @@ if [[ -z "${PROTOC_PATH}" ]]; then
     exit 1
 fi
 
-# 构建目录名称
+# 构建目录
 BUILD_DIR="build_aarch64_linux"
-
-# 清理并创建构建目录
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 
-# 保存原始 CMakeLists.txt，退出时恢复
-ORIG_CMAKE="CMakeLists.txt"
-TARGET_CMAKE="CMakeLists-aarch64-linux.txt"
+# 临时替换 CMakeLists.txt
+mv CMakeLists.txt CMakeLists.txt.bak
+cp CMakeLists-aarch64-linux.txt CMakeLists.txt
+trap 'mv CMakeLists.txt.bak CMakeLists.txt' EXIT
 
-if [[ ! -f "${ORIG_CMAKE}" ]]; then
-    echo "错误：${ORIG_CMAKE} 不存在。"
-    exit 1
-fi
+# 编译器路径
+CC="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+CXX="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
 
-mv "${ORIG_CMAKE}" "${ORIG_CMAKE}.bak"
-cp "${TARGET_CMAKE}" "${ORIG_CMAKE}"
-
-restore_cmake() {
-    if [[ -f "${ORIG_CMAKE}.bak" ]]; then
-        mv "${ORIG_CMAKE}.bak" "${ORIG_CMAKE}"
-    fi
-}
-trap restore_cmake EXIT
-
-# 配置编译器路径
-CMAKE_C_COMPILER="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
-CMAKE_CXX_COMPILER="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
-
-# Linux AArch64 交叉编译 sysroot（由 libc6-dev-arm64-cross 提供）
+# 两个 sysroot：
+# 1. Linux sysroot（提供 glibc、crt 文件）
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
+# 2. NDK sysroot（提供 Android 头文件，用于源码中 android/log.h 等）
+NDK_SYSROOT="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 
+# 检查必要目录
 if [[ ! -d "${LINUX_SYSROOT}" ]]; then
-    echo "错误：Linux sysroot 目录 ${LINUX_SYSROOT} 不存在，请安装 gcc-aarch64-linux-gnu 和 libc6-dev-arm64-cross。"
+    echo "错误：Linux sysroot 不存在，请安装 gcc-aarch64-linux-gnu libc6-dev-arm64-cross"
     exit 1
 fi
 
-# 获取 compiler-rt 资源目录
-NDK_CLANG_RESOURCE_DIR="$("${CMAKE_C_COMPILER}" --print-resource-dir)"
-# compiler-rt 库可能位于 lib/linux 或 lib/linux/aarch64，动态探测
-COMPILER_RT_BASE="${NDK_CLANG_RESOURCE_DIR}/lib/linux"
-if [[ -d "${COMPILER_RT_BASE}/aarch64" ]]; then
-    COMPILER_RT_LIB="${COMPILER_RT_BASE}/aarch64"
-else
-    COMPILER_RT_LIB="${COMPILER_RT_BASE}"
-fi
+# 编译标志：目标 Linux aarch64，主 sysroot 使用 Linux 的，同时添加 NDK sysroot 作为头文件后备
+CFLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} -isystem ${NDK_SYSROOT}/usr/include -fPIC -std=gnu11"
+CXXFLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} -isystem ${NDK_SYSROOT}/usr/include -fPIC -std=gnu++2a"
 
-echo ">>> compiler-rt 库目录: ${COMPILER_RT_LIB}"
+# 链接标志：静态链接，使用 lld
+LDFLAGS="-fuse-ld=lld -static"
+# 添加 Linux sysroot 库目录
+LDFLAGS+=" -L${LINUX_SYSROOT}/usr/lib -L${LINUX_SYSROOT}/lib"
+# 添加 GCC 库目录（包含 crtbeginT.o 等）
+GCC_LIB=$(aarch64-linux-gnu-gcc -print-libgcc-file-name | xargs dirname)
+LDFLAGS+=" -L${GCC_LIB}"
+# 添加 NDK compiler-rt 库目录，提供内置函数（libclang_rt.builtins-*.a）
+CLANG_RES="$(${CC} --print-resource-dir)"
+LDFLAGS+=" -L${CLANG_RES}/lib/linux/aarch64"
+# 直接链接 builtins 库（使用其原名）
+LDFLAGS+=" -l:libclang_rt.builtins-aarch64-android.a"
 
-# 查找 compiler-rt builtins 静态库
-BUILTINS_LIB=$(find "${COMPILER_RT_LIB}" -name "libclang_rt.builtins*.a" 2>/dev/null | head -1)
-if [[ -z "${BUILTINS_LIB}" ]]; then
-    echo "错误：找不到 compiler-rt builtins 静态库。"
-    exit 1
-fi
-BUILTINS_LIB_NAME=$(basename "${BUILTINS_LIB}")
-BUILTINS_LIB_DIR=$(dirname "${BUILTINS_LIB}")
-echo ">>> compiler-rt builtins 库: ${BUILTINS_LIB}"
+# 强制 pthread 支持
+THREAD_FLAGS=(
+    -DTHREADS_PREFER_PTHREAD_FLAG=ON
+    -DCMAKE_USE_PTHREADS_INIT=TRUE
+    -DThreads_FOUND=TRUE
+    -DCMAKE_THREAD_LIBS_INIT="-lpthread"
+    -DCMAKE_HAVE_THREADS_LIBRARY=TRUE
+)
 
-# 获取 GCC 交叉编译器的库目录（包含 crtbegin.o, crtend.o 等）
-if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
-    echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-aarch64-linux-gnu。"
-    exit 1
-fi
-
-GCC_LIB_DIR=$(aarch64-linux-gnu-gcc -print-libgcc-file-name | xargs dirname)
-echo ">>> GCC 库目录: ${GCC_LIB_DIR}"
-
-# 检查必需的 crt 文件
-if [[ ! -f "${GCC_LIB_DIR}/crtbegin.o" ]]; then
-    echo "错误：${GCC_LIB_DIR}/crtbegin.o 不存在。"
-    ls -la "${GCC_LIB_DIR}" || true
-    exit 1
-fi
-
-if [[ ! -f "${GCC_LIB_DIR}/crtend.o" ]]; then
-    echo "错误：${GCC_LIB_DIR}/crtend.o 不存在。"
-    exit 1
-fi
-
-# 为静态链接创建 crtbeginT.o 符号链接（如果不存在）
-if [[ ! -f "${GCC_LIB_DIR}/crtbeginT.o" ]]; then
-    echo ">>> 创建符号链接 ${GCC_LIB_DIR}/crtbeginT.o -> crtbegin.o"
-    ln -sf crtbegin.o "${GCC_LIB_DIR}/crtbeginT.o"
-fi
-
-# 基础编译标志
-COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT}"
-COMMON_FLAGS+=" -rtlib=compiler-rt -unwindlib=libunwind"
-
-# 静态链接标志
-LINKER_FLAGS="-fuse-ld=lld -static"
-LINKER_FLAGS+=" -L${LINUX_SYSROOT}/usr/lib -L${LINUX_SYSROOT}/lib"
-LINKER_FLAGS+=" -L${GCC_LIB_DIR}"
-LINKER_FLAGS+=" -L${BUILTINS_LIB_DIR}"
-LINKER_FLAGS+=" -l:${BUILTINS_LIB_NAME}"
-
-echo ">>> 使用的 sysroot: ${LINUX_SYSROOT}"
-echo ">>> 开始配置 CMake (目标: Linux aarch64)..."
-
-cmake -GNinja \
-    -B "${BUILD_DIR}" \
+# 运行 CMake 配置
+cmake -GNinja -B "${BUILD_DIR}" \
     -DCMAKE_SYSTEM_NAME=Linux \
     -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-    -DCMAKE_C_COMPILER="${CMAKE_C_COMPILER}" \
-    -DCMAKE_CXX_COMPILER="${CMAKE_CXX_COMPILER}" \
-    -DCMAKE_C_FLAGS="${COMMON_FLAGS} -fPIC -Wno-attributes -std=gnu11 -fcolor-diagnostics" \
-    -DCMAKE_CXX_FLAGS="${COMMON_FLAGS} -fPIC -Wno-attributes -std=gnu++2a -fcolor-diagnostics" \
-    -DCMAKE_EXE_LINKER_FLAGS="${LINKER_FLAGS}" \
+    -DCMAKE_C_COMPILER="${CC}" \
+    -DCMAKE_CXX_COMPILER="${CXX}" \
+    -DCMAKE_C_FLAGS="${CFLAGS}" \
+    -DCMAKE_CXX_FLAGS="${CXXFLAGS}" \
+    -DCMAKE_EXE_LINKER_FLAGS="${LDFLAGS}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DPNG_SHARED=OFF \
     -DZLIB_USE_STATIC_LIBS=ON \
-    -DTHREADS_PREFER_PTHREAD_FLAG=ON \
-    -DCMAKE_USE_PTHREADS_INIT=TRUE \
-    -DThreads_FOUND=TRUE \
-    -DCMAKE_THREAD_LIBS_INIT="-lpthread" \
-    -DCMAKE_HAVE_THREADS_LIBRARY=TRUE
+    "${THREAD_FLAGS[@]}"
 
-echo ">>> 开始编译 aapt2..."
+# 编译
 ninja -C "${BUILD_DIR}" aapt2
 
-# 剥离调试符号
+# 剥离符号
 LLVM_STRIP="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 if [[ -f "${LLVM_STRIP}" ]]; then
-    echo ">>> 剥离符号信息..."
     "${LLVM_STRIP}" --strip-unneeded "${BUILD_DIR}/bin/aapt2"
-else
-    echo "警告：未找到 llvm-strip，跳过符号剥离。"
 fi
 
-echo ">>> 构建完成！可执行文件位于: ${BUILD_DIR}/bin/aapt2"
+echo ">>> 构建完成：${BUILD_DIR}/bin/aapt2"
 file "${BUILD_DIR}/bin/aapt2"
