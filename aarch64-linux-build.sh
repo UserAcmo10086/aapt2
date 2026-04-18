@@ -1,4 +1,3 @@
-
 #!/bin/bash
 set -e
 
@@ -35,14 +34,17 @@ GCC_VER_DIR=$(find "${GCC_BASE}" -maxdepth 1 -type d -name "[0-9]*" | sort -V | 
 [[ -z "${GCC_VER_DIR}" ]] && echo "错误：未找到版本目录" && exit 1
 echo ">>> 使用 GCC 版本目录: ${GCC_VER_DIR}"
 
+# 设置库搜索路径环境变量（关键）
+export LIBRARY_PATH="${GCC_VER_DIR}:${LIBRARY_PATH}"
+
 # 编译标志
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
 
-# 链接器标志：静态链接，显式添加 C++ 标准库路径及库（C 测试也会链接，但不影响）
-LINKER_FLAGS="-fuse-ld=lld -static -L${GCC_VER_DIR} -lstdc++"
+# 链接器标志
+LINKER_FLAGS="-fuse-ld=lld -static"
 
 echo ">>> sysroot: ${LINUX_SYSROOT}"
 echo ">>> 开始 CMake 配置..."
@@ -56,6 +58,7 @@ cmake -GNinja \
     -DCMAKE_C_FLAGS="${CFLAGS}" \
     -DCMAKE_CXX_FLAGS="${CXXFLAGS}" \
     -DCMAKE_EXE_LINKER_FLAGS="${LINKER_FLAGS}" \
+    -DCMAKE_LIBRARY_PATH="${GCC_VER_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DPNG_SHARED=OFF \
     -DZLIB_USE_STATIC_LIBS=ON \
