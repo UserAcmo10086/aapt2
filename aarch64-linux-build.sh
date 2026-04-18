@@ -41,18 +41,29 @@ fi
 
 # ---------- 下载并编译 zlib 静态库（交叉编译） ----------
 if [[ ! -f "${ZLIB_INSTALL_DIR}/lib/libz.a" ]]; then
-    echo "正在下载并交叉编译 zlib..."
-    wget -q "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz" -O zlib.tar.gz
+    echo "正在下载 zlib 源码（从 GitHub 镜像）..."
+    ZLIB_URL="https://github.com/madler/zlib/archive/refs/tags/v${ZLIB_VERSION}.tar.gz"
+    wget --progress=dot:giga "${ZLIB_URL}" -O zlib.tar.gz || {
+        echo "尝试备用源：https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz"
+        wget "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz" -O zlib.tar.gz
+    }
+    echo "解压 zlib..."
     tar -xzf zlib.tar.gz
     pushd "zlib-${ZLIB_VERSION}"
-    # 设置交叉编译环境
+
+    echo "配置交叉编译环境..."
     export CC="${TARGET_TRIPLE}-gcc"
     export AR="${TARGET_TRIPLE}-ar"
     export RANLIB="${TARGET_TRIPLE}-ranlib"
     export CFLAGS="--sysroot=${SYSROOT}"
-    # 配置为静态库并指定安装路径
+
+    echo "运行 configure..."
     ./configure --prefix="${ZLIB_INSTALL_DIR}" --static
+
+    echo "编译 zlib（使用 $(nproc) 线程）..."
     make -j$(nproc)
+
+    echo "安装 zlib 到 ${ZLIB_INSTALL_DIR}..."
     make install
     popd
     rm -rf "zlib-${ZLIB_VERSION}" zlib.tar.gz
