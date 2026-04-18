@@ -1,3 +1,4 @@
+
 #!/bin/bash
 set -e
 
@@ -17,7 +18,7 @@ mv "${ORIG_CMAKE}" "${ORIG_CMAKE}.bak"
 cp "${TARGET_CMAKE}" "${ORIG_CMAKE}"
 trap '[[ -f "${ORIG_CMAKE}.bak" ]] && mv "${ORIG_CMAKE}.bak" "${ORIG_CMAKE}"' EXIT
 
-# NDK 工具链路径
+# NDK 工具链
 TOOLCHAIN="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64"
 CLANG="${TOOLCHAIN}/bin/clang"
 CLANGXX="${TOOLCHAIN}/bin/clang++"
@@ -26,27 +27,58 @@ LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 # Linux sysroot（由 libc6-dev-arm64-cross 提供）
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 if [[ ! -d "${LINUX_SYSROOT}" ]]; then
-    echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在，请安装 gcc-aarch64-linux-gnu 和 libc6-dev-arm64-cross"
+    echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在"
     exit 1
 fi
 
-# 查找 compiler-rt builtins 库（必须位于 lib/linux 子目录，排除 baremetal）
-COMPILER_RT_LIB=$(find "${TOOLCHAIN}" -path "*/lib/linux/libclang_rt.builtins-aarch64.a" 2>/dev/null | head -1)
-if [[ -z "${COMPILER_RT_LIB}" ]]; then
-    echo "错误：未找到 libclang_rt.builtins-aarch64.a (期望在 lib/linux 子目录)"
+# 动态查找 crt1.o, crti.o, crtn.o（位于 sysroot 内）
+find_file() {
+    local name=$1
+    local path
+    path=$(find "${LINUX_SYSROOT}" -name "${name}" -type f 2>/dev/null | head -1)
+    if [[ -z "${path}" ]]; then
+        echo "错误：在 ${LINUX_SYSROOT} 中未找到 ${name}"
+        exit 1
+    fi
+    echo "${path}"
+}
+
+CRT1=$(find_file "crt1.o")
+CRTI=$(find_file "crti.o")
+CRTN=$(find_file "crtn.o")
+
+# GCC 交叉编译库目录（提供 crtbeginT.o、crtend.o、libgcc.a 等）
+if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
+    echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-aarch64-linux-gnu"
     exit 1
 fi
-COMPILER_RT_DIR=$(dirname "${COMPILER_RT_LIB}")
-echo ">>> compiler-rt 目录: ${COMPILER_RT_DIR}"
+GCC_LIB_DIR=$(aarch64-linux-gnu-gcc -print-file-name=crtbeginT.o | xargs dirname)
+if [[ ! -d "${GCC_LIB_DIR}" ]]; then
+    echo "错误：无法确定 GCC 库目录"
+    exit 1
+fi
+echo ">>> GCC 库目录: ${GCC_LIB_DIR}"
+
+CRTBEGIN_T="${GCC_LIB_DIR}/crtbeginT.o"
+CRTEND="${GCC_LIB_DIR}/crtend.o"
+if [[ ! -f "${CRTBEGIN_T}" ]] || [[ ! -f "${CRTEND}" ]]; then
+    echo "错误：GCC 目录缺少 crtbeginT.o 或 crtend.o"
+    exit 1
+fi
 
 # 编译标志：目标 aarch64-linux-gnu，使用 Linux sysroot
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
 
-# 链接器标志：完全静态，强制使用 compiler-rt 和 libstdc++
-LINKER_FLAGS="-fuse-ld=lld -static -rtlib=compiler-rt -stdlib=libstdc++ -unwindlib=libunwind"
-LINKER_FLAGS+=" -L${COMPILER_RT_DIR}"
+# 链接器标志：完全静态，手动指定启动文件和库
+LINKER_FLAGS="-fuse-ld=lld -static -nostdlib"
+LINKER_FLAGS+=" ${CRT1} ${CRTI} ${CRTBEGIN_T}"
+LINKER_FLAGS+=" -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib"
+LINKER_FLAGS+=" -L${GCC_LIB_DIR}"
+LINKER_FLAGS+=" -lc -lm -ldl -lpthread -lrt"
+LINKER_FLAGS+=" -lgcc -lgcc_eh"          # 使用系统的 libgcc 提供内置函数
+LINKER_FLAGS+=" ${CRTEND} ${CRTN}"
 
 echo ">>> sysroot: ${LINUX_SYSROOT}"
 echo ">>> 开始 CMake 配置..."
