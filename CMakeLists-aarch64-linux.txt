@@ -29,10 +29,10 @@ set(CMAKE_USE_PTHREADS_INIT TRUE CACHE BOOL "Use pthreads" FORCE)
 set(Threads_FOUND TRUE CACHE BOOL "Threads found" FORCE)
 set(CMAKE_THREAD_LIBS_INIT "-lpthread" CACHE STRING "Thread library" FORCE)
 
-# 强制指定 zlib 路径（直接指向通过 apt 安装的 arm64 版 libz.a）
+# 强制指定 zlib 路径（路径已修正为 sysroot 下的真实目录）
 set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
-set(ZLIB_LIBRARIES /usr/lib/aarch64-linux-gnu/libz.a CACHE FILEPATH "" FORCE)
-set(ZLIB_INCLUDE_DIR /usr/include/aarch64-linux-gnu CACHE PATH "" FORCE)
+set(ZLIB_LIBRARIES /usr/aarch64-linux-gnu/lib/libz.a CACHE FILEPATH "" FORCE)
+set(ZLIB_INCLUDE_DIR /usr/aarch64-linux-gnu/include CACHE PATH "" FORCE)
 
 # protobuf 选项
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
