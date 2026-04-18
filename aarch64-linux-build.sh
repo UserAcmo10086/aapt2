@@ -48,7 +48,7 @@ restore_cmake() {
 trap restore_cmake EXIT
 
 echo "开始 CMake 配置..."
-# 注意：不再使用 CMAKE_SYSROOT 和 FIND_ROOT_PATH，改用编译标志明确指定路径
+# 将 C++ 优化级别强制设为 -O1，避免 GCC 13 内部编译器错误（ICE）
 cmake -GNinja \
     -B "${BUILD_DIR}" \
     -DCMAKE_SYSTEM_NAME="Linux" \
@@ -57,6 +57,7 @@ cmake -GNinja \
     -DCMAKE_CXX_COMPILER="${TARGET_TRIPLE}-g++" \
     -DCMAKE_C_FLAGS="-I${SYSROOT_BASE}/include" \
     -DCMAKE_CXX_FLAGS="-I${SYSROOT_BASE}/include" \
+    -DCMAKE_CXX_FLAGS_RELEASE="-O0" \
     -DCMAKE_EXE_LINKER_FLAGS="-L${SYSROOT_BASE}/lib -static" \
     -DCMAKE_BUILD_TYPE="Release" \
     -DPNG_SHARED=OFF \
