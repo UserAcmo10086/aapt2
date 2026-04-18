@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.14.2)
 
-# 强制跳过交叉编译时的编译器测试
 set(CMAKE_C_COMPILER_WORKS TRUE CACHE BOOL "Skip C compiler test" FORCE)
 set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE BOOL "Skip CXX compiler test" FORCE)
 set(CMAKE_C_COMPILER_ABI_COMPILED TRUE CACHE BOOL "Skip C ABI detection" FORCE)
@@ -16,6 +15,9 @@ enable_language(ASM)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -fPIC -Wno-attributes -std=gnu11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always -fPIC -Wno-attributes -std=gnu++2a")
 set(CMAKE_EXE_LINKER_FLAGS "-static")
+
+# 禁用 Android 特定代码路径，避免 GCC 不识别 __builtin_available 等
+add_definitions(-D__ANDROID__=0 -D__ANDROID_API__=0)
 
 set(TOOLS_VERSION 35.0.2)
 set(SRC ${PROJECT_SOURCE_DIR}/submodules)
