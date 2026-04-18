@@ -1,64 +1,103 @@
-name: Build aarch64 Linux aapt2
+# .github/workflows/aarch64-linux-build.yml
+# GitHub Actions 工作流：编译 aarch64-linux-gnu 平台的 aapt2，并进行基本验证
+
+name: AArch64 Linux Build
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:          # 允许手动触发
   push:
-    branches:
-      - main
-      - dev
-    paths-ignore:
-      - '**.md'
-      - '.gitignore'
-      - 'LICENSE'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [ main, dev ]   # 主分支推送时自动构建
 
 jobs:
-  build-linux-aarch64:
-    name: 交叉编译 aarch64 Linux 版 aapt2
-    runs-on: ubuntu-22.04
+  build:
+    name: Build aapt2 for aarch64-linux-gnu
+    runs-on: ubuntu-latest
+
     steps:
-      - name: 检出代码（含子模块）
+      # 1. 检出代码及子模块
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
+          submodules: 'true'
+          fetch-depth: 0       # 确保获取完整历史，以便应用补丁
 
-      - name: 安装基础工具
+      # 2. 安装依赖工具
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake file
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            protobuf-compiler \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            libc6-dev-arm64-cross \
+            libstdc++-arm64-cross \
+            qemu-user-static   # 用于运行 aarch64 二进制以验证版本
 
-      - name: 获取 protoc
+      # 3. 安装特定版本的 protoc（与原 release.yml 保持一致）
+      - name: Install protoc 21.12
         run: |
-          PROTOC_VERSION="21.12"
-          wget -q "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
-          sudo unzip -j "protoc-${PROTOC_VERSION}-linux-x86_64.zip" bin/protoc -d /usr/local/bin/
-          sudo chmod +x /usr/local/bin/protoc
-          echo "PROTOC_PATH=/usr/local/bin/protoc" >> $GITHUB_ENV
+          wget https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip
+          sudo unzip -j protoc-21.12-linux-x86_64.zip bin/protoc -d /usr/local/bin/
+          rm protoc-21.12-linux-x86_64.zip
+          protoc --version
 
-      - name: 下载 Linaro 交叉编译工具链
+      # 4. 验证交叉编译工具链
+      - name: Verify cross-compiler
         run: |
-          TOOLCHAIN_URL="https://releases.linaro.org/components/toolchain/binaries/7.5-2019.12/aarch64-linux-gnu/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu.tar.xz"
-          wget -q "${TOOLCHAIN_URL}"
-          tar -xf gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu.tar.xz
-          echo "TOOLCHAIN_DIR=$PWD/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu" >> $GITHUB_ENV
+          aarch64-linux-gnu-gcc --version
+          aarch64-linux-gnu-g++ --version
+          echo "sysroot: $(aarch64-linux-gnu-gcc -print-sysroot)"
 
-      - name: 应用补丁
+      # 5. 应用 Linux 平台补丁
+      - name: Apply Linux-specific patches
         run: |
           chmod +x ./aarch64-linux-patch.sh
           ./aarch64-linux-patch.sh
 
-      - name: 构建 aapt2
+      # 6. 构建 aapt2
+      - name: Build aapt2 for aarch64-linux
         run: |
           chmod +x ./aarch64-linux-build.sh
           ./aarch64-linux-build.sh
 
-      - name: 上传构建产物
+      # 7. 验证生成的可执行文件
+      - name: Verify executable type
+        run: |
+          file build-linux/bin/aapt2
+          # 期望输出包含 "ELF 64-bit LSB executable, ARM aarch64"
+
+      # 8. 使用 QEMU 用户态模拟运行 aapt2 version
+      - name: Test aapt2 version under QEMU
+        run: |
+          qemu-aarch64-static ./build-linux/bin/aapt2 version
+          # 输出应类似 "aapt2 35.0.2-..." 表示成功
+
+      # 9. 上传构建产物
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aapt2-linux-aarch64
-          path: build-linux-aarch64/bin/aapt2
+          name: aapt2-aarch64-linux
+          path: ${{ github.workspace }}/build-linux/bin/aapt2
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
+
+  # 可选：创建 GitHub Release（如需自动发布，可取消注释并配置 secrets）
+  # release:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: write
+  #   steps:
+  #     - name: Download artifact
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: aapt2-aarch64-linux
+  #         path: artifacts/
+  #     - name: Create Release
+  #       uses: softprops/action-gh-release@v1
+  #       with:
+  #         files: artifacts/aapt2
+  #         tag_name: aapt2-linux-${{ github.run_number }}
+  #         name: aapt2 for aarch64 Linux
