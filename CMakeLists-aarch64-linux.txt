@@ -1,22 +1,21 @@
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools)
 
-# 强制 CMake 跳过编译器工作性检查（交叉编译时通常需要）
+# 强制 CMake 跳过编译器工作性检查（交叉编译需要）
 set(CMAKE_C_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE INTERNAL "")
 
-# 设置 C/C++ 标准
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-# 全局编译标志（与 NDK Clang 兼容）
+# 全局编译标志
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics -fPIC -Wno-attributes -std=gnu11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics -fPIC -Wno-attributes -std=gnu++2a")
 
 # 强制静态链接
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
-# pthread 线程支持（强制设置相关变量）
+# pthread 线程支持（强制设置）
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_USE_PTHREADS_INIT TRUE)
 set(Threads_FOUND TRUE)
@@ -36,7 +35,14 @@ set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "" FORCE)
 
-# 第三方库子目录（与原始 CMakeLists.txt 保持一致）
+# 如果从构建脚本传递了 GCC_VER_DIR，则添加库目录并强制使用 libstdc++.a
+if(DEFINED GCC_VER_DIR)
+    link_directories(${GCC_VER_DIR})
+    set(CMAKE_CXX_STANDARD_LIBRARIES "-l:libstdc++.a" CACHE STRING "Force static libstdc++" FORCE)
+    message(STATUS "Using GCC version directory: ${GCC_VER_DIR}")
+endif()
+
+# 第三方库子目录
 add_subdirectory(submodules/boringssl EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/fmtlib EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/pcre EXCLUDE_FROM_ALL)
