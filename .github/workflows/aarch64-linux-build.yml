@@ -17,10 +17,10 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: 安装交叉编译工具链及手动部署 arm64 版 zlib 开发文件
+      - name: 安装交叉编译工具链并手动部署 arm64 版 zlib 到 sysroot
         run: |
           set -e
-          # 直接安装 amd64 的交叉工具链（无需 update，避免 arm64 源 404）
+          # 安装交叉编译工具链（均为 amd64 包，无需 update）
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
@@ -30,18 +30,28 @@ jobs:
             wget
 
           # 创建临时目录并下载 arm64 的 zlib 包
-          TEMP_DEB_DIR=$(mktemp -d)
-          cd "$TEMP_DEB_DIR"
+          TEMP_DIR=$(mktemp -d)
+          cd "$TEMP_DIR"
 
           wget http://ports.ubuntu.com/pool/main/z/zlib/zlib1g_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
           wget http://ports.ubuntu.com/pool/main/z/zlib/zlib1g-dev_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
 
-          # 强制安装 arm64 包（忽略架构警告）
-          sudo dpkg -i --force-depends zlib1g_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
-          sudo dpkg -i --force-depends zlib1g-dev_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
+          # 解包到临时目录
+          dpkg-deb -x zlib1g_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb zlib1g
+          dpkg-deb -x zlib1g-dev_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb zlib1g-dev
+
+          # 将文件复制到交叉编译 sysroot（/usr/aarch64-linux-gnu）
+          # 注意：libz.a 位于 /usr/lib/aarch64-linux-gnu/，头文件位于 /usr/include/aarch64-linux-gnu/
+          sudo cp -v zlib1g-dev/usr/include/*.h /usr/aarch64-linux-gnu/include/
+          sudo cp -v zlib1g/usr/lib/aarch64-linux-gnu/libz.so.* /usr/aarch64-linux-gnu/lib/
+          sudo cp -v zlib1g-dev/usr/lib/aarch64-linux-gnu/libz.a /usr/aarch64-linux-gnu/lib/
+          # 创建必要的符号链接（libz.so -> libz.so.1.3）
+          cd /usr/aarch64-linux-gnu/lib
+          sudo ln -sf libz.so.1.3 libz.so.1
+          sudo ln -sf libz.so.1 libz.so
 
           cd /
-          rm -rf "$TEMP_DEB_DIR"
+          rm -rf "$TEMP_DIR"
 
       - name: 获取 protoc 编译器
         run: |
