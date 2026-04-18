@@ -46,18 +46,16 @@ jobs:
           sudo cp -v zlib1g-dev/usr/lib/aarch64-linux-gnu/libz.a /usr/aarch64-linux-gnu/lib/
 
           cd /usr/aarch64-linux-gnu/lib
-          sudo ln -sf libz.so.1.3.1 libz.so.1
+          sudo ln -sf libz.so.1.3 libz.so.1
           sudo ln -sf libz.so.1 libz.so
 
           # ===== 修复 sysroot 头文件路径映射 =====
-          cd /usr/aarch64-linux-gnu
-          sudo mkdir -p usr
-          sudo ln -sf ../include usr/include
+          # 创建 usr/include 符号链接指向 ../include，解决 --sysroot 下 #include_next 问题
+          sudo mkdir -p /usr/aarch64-linux-gnu/usr
+          sudo ln -sf ../include /usr/aarch64-linux-gnu/usr/include
 
           cd /
           rm -rf "$TEMP_DIR"
-
-          find /usr -name "stdlib.h" 2>/dev/null
 
       - name: 获取 protoc 编译器
         run: |
