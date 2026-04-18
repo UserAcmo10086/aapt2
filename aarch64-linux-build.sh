@@ -1,7 +1,8 @@
+
 #!/bin/bash
 set -e
 
-# 检查必要的环境变量
+# 检查环境变量
 [[ -z "${ANDROID_NDK}" ]] && echo "错误：请设置 ANDROID_NDK" && exit 1
 [[ -z "${PROTOC_PATH}" ]] && echo "错误：请设置 PROTOC_PATH" && exit 1
 
@@ -17,44 +18,31 @@ mv "${ORIG_CMAKE}" "${ORIG_CMAKE}.bak"
 cp "${TARGET_CMAKE}" "${ORIG_CMAKE}"
 trap '[[ -f "${ORIG_CMAKE}.bak" ]] && mv "${ORIG_CMAKE}.bak" "${ORIG_CMAKE}"' EXIT
 
-# NDK 工具链路径
+# NDK 工具链
 TOOLCHAIN="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64"
 CLANG="${TOOLCHAIN}/bin/clang"
 CLANGXX="${TOOLCHAIN}/bin/clang++"
 LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 
-# Linux sysroot（由 libc6-dev-arm64-cross 提供）
+# Linux sysroot
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
-if [[ ! -d "${LINUX_SYSROOT}" ]]; then
-    echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在"
-    exit 1
-fi
+[[ ! -d "${LINUX_SYSROOT}" ]] && echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在" && exit 1
 
-# 动态探测 GCC 版本目录（包含 libstdc++.a、crtbeginT.o 等）
+# 动态探测 GCC 版本目录
 GCC_BASE="/usr/lib/gcc-cross/aarch64-linux-gnu"
-if [[ ! -d "${GCC_BASE}" ]]; then
-    echo "错误：GCC 交叉编译器目录 ${GCC_BASE} 不存在，请安装 gcc-aarch64-linux-gnu"
-    exit 1
-fi
-
+[[ ! -d "${GCC_BASE}" ]] && echo "错误：GCC 交叉编译器目录 ${GCC_BASE} 不存在" && exit 1
 GCC_VER_DIR=$(find "${GCC_BASE}" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
-if [[ -z "${GCC_VER_DIR}" ]]; then
-    echo "错误：在 ${GCC_BASE} 中未找到版本目录"
-    exit 1
-fi
+[[ -z "${GCC_VER_DIR}" ]] && echo "错误：未找到版本目录" && exit 1
 echo ">>> 使用 GCC 版本目录: ${GCC_VER_DIR}"
 
-# 通过 LDFLAGS 注入 libstdc++.a 的链接，确保 C++ 编译器检测通过
-export LDFLAGS="-L${GCC_VER_DIR} -lstdc++"
-
-# 编译标志：--gcc-toolchain=/usr 让 Clang 自动查找系统工具链
+# 编译标志
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
 
-# 链接器标志：静态链接，使用 LLD
-LINKER_FLAGS="-fuse-ld=lld -static"
+# 链接器标志：静态链接，显式添加 C++ 标准库路径及库（C 测试也会链接，但不影响）
+LINKER_FLAGS="-fuse-ld=lld -static -L${GCC_VER_DIR} -lstdc++"
 
 echo ">>> sysroot: ${LINUX_SYSROOT}"
 echo ">>> 开始 CMake 配置..."
@@ -80,10 +68,6 @@ cmake -GNinja \
 echo ">>> 开始编译 aapt2..."
 ninja -C "${BUILD_DIR}" aapt2
 
-if [[ -f "${LLVM_STRIP}" ]]; then
-    echo ">>> 剥离符号..."
-    "${LLVM_STRIP}" --strip-unneeded "${BUILD_DIR}/bin/aapt2"
-fi
-
+[[ -f "${LLVM_STRIP}" ]] && "${LLVM_STRIP}" --strip-unneeded "${BUILD_DIR}/bin/aapt2"
 echo ">>> 构建完成！"
 file "${BUILD_DIR}/bin/aapt2"
