@@ -3,6 +3,7 @@ set -e
 
 TARGET_TRIPLE="aarch64-linux-gnu"
 BUILD_DIR="build_aarch64_linux"
+SYSROOT_BASE="/usr/aarch64-linux-gnu"
 
 help() {
     script_name=$(basename "$0")
@@ -11,7 +12,6 @@ help() {
     echo "环境要求:"
     echo "  - 必须安装 aarch64-linux-gnu 交叉编译工具链"
     echo "  - 必须设置 PROTOC_PATH 环境变量（指向 protoc 可执行文件）"
-    echo "  - 可选设置 SYSROOT 环境变量，默认使用 /usr/aarch64-linux-gnu"
     echo
     echo "示例:"
     echo "  PROTOC_PATH=/usr/local/bin/protoc $script_name"
@@ -28,12 +28,8 @@ if ! command -v ${TARGET_TRIPLE}-gcc &> /dev/null; then
     exit 1
 fi
 
-if [[ -z "${SYSROOT}" ]]; then
-    SYSROOT="/usr/${TARGET_TRIPLE}"
-fi
-
-if [[ ! -d "${SYSROOT}" ]]; then
-    echo "错误: sysroot 目录不存在: ${SYSROOT}"
+if [[ ! -d "${SYSROOT_BASE}" ]]; then
+    echo "错误: 交叉编译根目录不存在: ${SYSROOT_BASE}"
     exit 1
 fi
 
@@ -52,21 +48,19 @@ restore_cmake() {
 trap restore_cmake EXIT
 
 echo "开始 CMake 配置..."
+# 注意：不再使用 CMAKE_SYSROOT 和 FIND_ROOT_PATH，改用编译标志明确指定路径
 cmake -GNinja \
     -B "${BUILD_DIR}" \
     -DCMAKE_SYSTEM_NAME="Linux" \
     -DCMAKE_SYSTEM_PROCESSOR="aarch64" \
     -DCMAKE_C_COMPILER="${TARGET_TRIPLE}-gcc" \
     -DCMAKE_CXX_COMPILER="${TARGET_TRIPLE}-g++" \
-    -DCMAKE_SYSROOT="${SYSROOT}" \
-    -DCMAKE_FIND_ROOT_PATH="${SYSROOT}" \
-    -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM="NEVER" \
-    -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY="ONLY" \
-    -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE="ONLY" \
+    -DCMAKE_C_FLAGS="-I${SYSROOT_BASE}/include" \
+    -DCMAKE_CXX_FLAGS="-I${SYSROOT_BASE}/include" \
+    -DCMAKE_EXE_LINKER_FLAGS="-L${SYSROOT_BASE}/lib -static" \
     -DCMAKE_BUILD_TYPE="Release" \
     -DPNG_SHARED=OFF \
     -DZLIB_USE_STATIC_LIBS=ON \
-    -DCMAKE_EXE_LINKER_FLAGS="-static" \
     -DTHREADS_PREFER_PTHREAD_FLAG=ON \
     -DCMAKE_USE_PTHREADS_INIT=TRUE \
     -DThreads_FOUND=TRUE \
