@@ -23,17 +23,17 @@ LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 [[ ! -d "${LINUX_SYSROOT}" ]] && echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在" && exit 1
 
-# 使用 aarch64-linux-gnu-gcc 定位 GCC 版本目录
 if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
     echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-aarch64-linux-gnu"
     exit 1
 fi
+
 CRTBEGIN_T_DIR=$(aarch64-linux-gnu-gcc -print-file-name=crtbeginT.o | xargs dirname)
 [[ ! -d "${CRTBEGIN_T_DIR}" ]] && echo "错误：无法确定 crtbeginT.o 目录" && exit 1
 echo ">>> crtbeginT.o 目录: ${CRTBEGIN_T_DIR}"
 
-# 目标平台 zlib 静态库路径（由 zlib1g-dev:arm64 提供）
-ZLIB_LIBRARY="${LINUX_SYSROOT}/usr/lib/libz.a"
+# 修正后的 libz.a 路径
+ZLIB_LIBRARY="${LINUX_SYSROOT}/lib/libz.a"
 if [[ ! -f "${ZLIB_LIBRARY}" ]]; then
     echo "错误：未找到目标平台的 libz.a，请在工作流中安装 zlib1g-dev:arm64"
     exit 1
@@ -41,7 +41,6 @@ fi
 ZLIB_INCLUDE_DIR="${LINUX_SYSROOT}/usr/include"
 echo ">>> ZLIB 库: ${ZLIB_LIBRARY}"
 
-# 库搜索路径
 export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr/lib:${LIBRARY_PATH}"
 
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
@@ -51,7 +50,6 @@ CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a -lstdc++"
 
 LINKER_FLAGS="-fuse-ld=lld -static -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib"
 
-# 强制跳过所有 CMake 测试，直接配置
 cmake -GNinja \
     -B "${BUILD_DIR}" \
     -DCMAKE_SYSTEM_NAME=Linux \
