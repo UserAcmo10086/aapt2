@@ -1,67 +1,48 @@
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools)
 
-# 强制跳过编译器工作性检查（交叉编译无法运行测试程序）
-set(CMAKE_C_COMPILER_WORKS TRUE CACHE INTERNAL "")
-set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE INTERNAL "")
-set(CMAKE_C_COMPILER_FORCED TRUE CACHE INTERNAL "")
-set(CMAKE_CXX_COMPILER_FORCED TRUE CACHE INTERNAL "")
+# 强制 CMake 认为交叉编译器可用，跳过所有测试
+set(CMAKE_C_COMPILER_WORKS 1 CACHE INTERNAL "")
+set(CMAKE_CXX_COMPILER_WORKS 1 CACHE INTERNAL "")
+set(CMAKE_C_COMPILER_FORCED 1 CACHE INTERNAL "")
+set(CMAKE_CXX_COMPILER_FORCED 1 CACHE INTERNAL "")
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-# 全局编译标志（这些标志由构建脚本通过 CMAKE_C_FLAGS 传入，此处留空或保留默认）
-# 实际标志在构建脚本中定义
+# 全局编译标志由外部构建脚本通过 CMAKE_C_FLAGS 等传入，这里不重复定义
+# 确保 CMake 不自动添加任何干扰标志
 
-# 强制静态链接
+# 静态链接
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
-# pthread 线程支持
+# 强制 pthread 支持
 set(THREADS_PREFER_PTHREAD_FLAG ON CACHE BOOL "" FORCE)
 set(CMAKE_USE_PTHREADS_INIT TRUE CACHE BOOL "" FORCE)
 set(Threads_FOUND TRUE CACHE BOOL "" FORCE)
 set(CMAKE_THREAD_LIBS_INIT "-lpthread" CACHE STRING "" FORCE)
 set(CMAKE_HAVE_THREADS_LIBRARY TRUE CACHE BOOL "" FORCE)
 
-# 平台工具版本
 set(TOOLS_VERSION 35.0.2)
 set(SRC ${PROJECT_SOURCE_DIR}/submodules)
 
-# 64 位 off_t 支持
 add_definitions(-D_FILE_OFFSET_BITS=64)
 
-# protobuf 构建选项
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "" FORCE)
 
-# 动态查找 libstdc++.a（由构建脚本传入搜索路径）
-if(DEFINED GCC_LIB_SEARCH_PATH)
-    find_library(STDCPP_LIB NAMES libstdc++.a stdc++ PATHS ${GCC_LIB_SEARCH_PATH} NO_DEFAULT_PATH)
-    if(STDCPP_LIB)
-        message(STATUS "Found libstdc++.a: ${STDCPP_LIB}")
-        # 将库路径添加到链接器搜索路径
-        get_filename_component(STDCPP_DIR ${STDCPP_LIB} DIRECTORY)
-        link_directories(${STDCPP_DIR})
-        # 设置 C++ 标准库为找到的静态库
-        set(CMAKE_CXX_STANDARD_LIBRARIES "${STDCPP_LIB}" CACHE STRING "" FORCE)
-    else()
-        message(WARNING "libstdc++.a not found in ${GCC_LIB_SEARCH_PATH}, link may fail")
-    endif()
+# 如果构建脚本传入了额外的库搜索路径，添加之
+if(DEFINED EXTRA_LIB_DIRS)
+    link_directories(${EXTRA_LIB_DIRS})
 endif()
 
-# 同样查找 libgcc.a 目录以添加搜索路径（用于 crtbeginT.o 等）
-if(DEFINED GCC_LIB_SEARCH_PATH)
-    find_library(GCC_LIB NAMES libgcc.a PATHS ${GCC_LIB_SEARCH_PATH} NO_DEFAULT_PATH)
-    if(GCC_LIB)
-        get_filename_component(GCC_LIB_DIR ${GCC_LIB} DIRECTORY)
-        link_directories(${GCC_LIB_DIR})
-        message(STATUS "Found libgcc.a directory: ${GCC_LIB_DIR}")
-    endif()
+# 强制使用静态 libstdc++（由构建脚本找到并传入全路径）
+if(DEFINED STDCPP_A_PATH)
+    set(CMAKE_CXX_STANDARD_LIBRARIES "${STDCPP_A_PATH}" CACHE STRING "" FORCE)
 endif()
 
-# 第三方库子目录
 add_subdirectory(submodules/boringssl EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/fmtlib EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/pcre EXCLUDE_FROM_ALL)
@@ -71,5 +52,4 @@ add_subdirectory(submodules/expat/expat EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/protobuf EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
-# 构建主程序
 add_subdirectory(cmake)
