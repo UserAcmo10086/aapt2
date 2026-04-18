@@ -22,13 +22,12 @@ git apply "patches/apktool_ibotpeaches.patch"
 git apply "patches/protobuf.patch"
 git apply "patches/32bsystem_on_armv8.patch"
 
-# ===== 新增：修复 StringStream.cpp 缺失的头文件 =====
-# 在文件开头插入 #include <cstring> 和 #include <limits>
+# ===== 精确修复 StringStream.cpp 缺失的头文件 =====
 STRINGSTREAM_FILE="submodules/base/tools/aapt2/io/StringStream.cpp"
 
 if [[ -f "$STRINGSTREAM_FILE" ]]; then
-    # 在第一个 #include 行之后插入 <cstring> 和 <limits>
-    sed -i '1a #include <cstring>\n#include <limits>' "$STRINGSTREAM_FILE"
+    # 在 '#include "io/StringStream.h"' 之后插入 #include <cstring> 和 #include <limits>
+    sed -i '/#include "io\/StringStream.h"/a #include <cstring>\n#include <limits>' "$STRINGSTREAM_FILE"
     echo "已修复 StringStream.cpp 缺失的头文件"
 fi
 
