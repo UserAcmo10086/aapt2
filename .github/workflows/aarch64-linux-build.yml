@@ -1,7 +1,7 @@
-name: 构建 Linux aarch64 版 aapt2
+name: 构建 Linux aarch64 版 aapt2 (NDK Clang)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:          # 允许手动触发
   push:
     branches:
       - main
@@ -9,112 +9,93 @@ on:
 
 jobs:
   build:
-    name: 交叉编译 Linux aarch64
-    runs-on: ubuntu-22.04
+    name: 构建 Linux aarch64
+    runs-on: ubuntu-latest
     steps:
-      - name: 检出代码（包含子模块）
+      # 1. 检出代码（包含子模块）
+      - name: 检出代码及子模块
         uses: actions/checkout@v4
         with:
           submodules: 'true'
 
-      - name: 安装 GCC 11 aarch64 交叉编译工具链并部署 zlib arm64 库
-        run: |
-          set -e
-          sudo apt-get update
-          sudo apt-get install -y \
-            gcc-11-aarch64-linux-gnu \
-            g++-11-aarch64-linux-gnu \
-            binutils-aarch64-linux-gnu \
-            libc6-dev-arm64-cross \
-            ninja-build \
-            wget
+      # 2. 安装 NDK r25c（使用 setup-ndk action）
+      - name: 安装 NDK r25c
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r25c
+          add-to-path: false
 
-          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-11 100
-          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-11 100
-
-          TEMP_DIR=$(mktemp -d)
-          cd "$TEMP_DIR"
-
-          wget http://ports.ubuntu.com/pool/main/z/zlib/zlib1g_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
-          wget http://ports.ubuntu.com/pool/main/z/zlib/zlib1g-dev_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
-
-          dpkg-deb -x zlib1g_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb zlib1g
-          dpkg-deb -x zlib1g-dev_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb zlib1g-dev
-
-          sudo cp -v zlib1g-dev/usr/include/*.h /usr/aarch64-linux-gnu/include/
-          sudo cp -v zlib1g/usr/lib/aarch64-linux-gnu/libz.so.* /usr/aarch64-linux-gnu/lib/
-          sudo cp -v zlib1g-dev/usr/lib/aarch64-linux-gnu/libz.a /usr/aarch64-linux-gnu/lib/
-
-          cd /usr/aarch64-linux-gnu/lib
-          sudo ln -sf libz.so.1.3 libz.so.1
-          sudo ln -sf libz.so.1 libz.so
-
-          cd /
-          rm -rf "$TEMP_DIR"
-
-      - name: 获取 protoc 编译器
+      # 3. 获取 protoc（协议缓冲区编译器）
+      - name: 下载并安装 protoc
         run: |
           wget https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip
           sudo unzip -j protoc-*.zip bin/protoc -d /usr/local/bin/
           sudo chmod +x /usr/local/bin/protoc
 
-      - name: 应用构建前补丁
+      # 4. 应用轻量级补丁（修正路径和符号链接）
+      - name: 应用补丁
         run: bash ./aarch64-linux-patch.sh
 
-      - name: 配置并编译 aapt2
+      # 5. 构建 aapt2
+      - name: 构建 aapt2 (Linux aarch64)
         env:
+          ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
           PROTOC_PATH: /usr/local/bin/protoc
         run: bash ./aarch64-linux-build.sh
 
-      - name: 上传构建产物
+      # 6. 上传构建产物
+      - name: 上传 aapt2 可执行文件
         uses: actions/upload-artifact@v4
         with:
           name: aapt2-linux-aarch64
           path: build_aarch64_linux/bin/aapt2
-          archive: false
+          archive: false                    # 不压缩，保持可执行文件原始状态
 
+  # 可选：自动发布（需配置 semantic-release 和对应 secrets）
   release:
+    name: 发布构建产物
     needs: build
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       id-token: write
       contents: write
       attestations: write
     steps:
-      - name: 检出代码
+      - name: 检出代码（用于发布配置）
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - name: 下载构建产物
+      - name: 下载所有构建产物
         uses: actions/download-artifact@v4
         with:
-          name: aapt2-linux-aarch64
           path: artifacts/
+          merge-multiple: true
 
-      - name: 生成构建来源证明（仅当推送 main 分支时）
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      - name: 生成来源证明（Attestations）
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: artifacts/aapt2
 
-      - name: 设置 Node.js 环境
+      - name: 安装 Node.js 环境
         uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
           cache: 'npm'
 
-      - name: 安装语义发布依赖
+      - name: 安装 semantic-release 依赖
         run: npm install
 
-      - name: 导入 GPG 密钥
+      - name: 导入 GPG 密钥（用于签名发布）
         uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
           fingerprint: ${{ vars.GPG_FINGERPRINT }}
 
-      - name: 执行语义发布
+      - name: 执行 semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm exec semantic-release
