@@ -7,31 +7,36 @@
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools-linux-aarch64)
 
-# 设置 C/C++ 标准
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-# 目标架构为 aarch64，必须启用 ASM 语言支持
 enable_language(ASM)
 
-# 全局编译选项（环境变量已传递 -static -fPIC，此处仅添加警告抑制和诊断颜色）
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics -Wno-attributes")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics -Wno-attributes")
 
-# 平台工具版本（与上游保持一致）
+# 强制线程支持，绕过 FindThreads 检测失败
+set(THREADS_PTHREAD_ARG "0" CACHE STRING "Forced" FORCE)
+set(CMAKE_HAVE_LIBC_PTHREAD ON CACHE BOOL "Forced" FORCE)
+set(CMAKE_USE_PTHREADS_INIT ON CACHE BOOL "Forced" FORCE)
+add_definitions(-DHAVE_PTHREAD=1)
+
+# 直接提供 Threads::Threads 目标，避免 boringssl 的 find_package(Threads) 报错
+if(NOT TARGET Threads::Threads)
+    add_library(Threads::Threads INTERFACE IMPORTED)
+    set_property(TARGET Threads::Threads PROPERTY INTERFACE_LINK_LIBRARIES "-pthread")
+endif()
+
 set(TOOLS_VERSION 35.0.2)
 set(SRC ${PROJECT_SOURCE_DIR}/submodules)
 
-# 启用 64 位 off_t 支持
 add_definitions(-D_FILE_OFFSET_BITS=64)
 
-# Protobuf 构建选项：强制使用静态库，禁用测试和共享库
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "" FORCE)
 
-# 添加第三方依赖库子目录（顺序按照依赖关系，原项目已验证）
 add_subdirectory(submodules/boringssl EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/fmtlib EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/pcre EXCLUDE_FROM_ALL)
@@ -41,5 +46,4 @@ add_subdirectory(submodules/expat/expat EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/protobuf EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
-# 添加构建工具目录（包含 aapt2 的 CMake 定义）
 add_subdirectory(cmake)
