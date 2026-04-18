@@ -1,22 +1,20 @@
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools)
 
-# 强制 CMake 认为交叉编译器可用，跳过所有测试
-set(CMAKE_C_COMPILER_WORKS 1 CACHE INTERNAL "")
-set(CMAKE_CXX_COMPILER_WORKS 1 CACHE INTERNAL "")
-set(CMAKE_C_COMPILER_FORCED 1 CACHE INTERNAL "")
-set(CMAKE_CXX_COMPILER_FORCED 1 CACHE INTERNAL "")
+# 强制跳过编译器工作性检查（交叉编译必须）
+set(CMAKE_C_COMPILER_WORKS TRUE CACHE INTERNAL "")
+set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE INTERNAL "")
+set(CMAKE_C_COMPILER_FORCED TRUE CACHE INTERNAL "")
+set(CMAKE_CXX_COMPILER_FORCED TRUE CACHE INTERNAL "")
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-# 全局编译标志由外部构建脚本通过 CMAKE_C_FLAGS 等传入，这里不重复定义
-# 确保 CMake 不自动添加任何干扰标志
-
+# 全局编译标志（实际通过命令行传入，此处不重复）
 # 静态链接
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
-# 强制 pthread 支持
+# pthread 强制设置
 set(THREADS_PREFER_PTHREAD_FLAG ON CACHE BOOL "" FORCE)
 set(CMAKE_USE_PTHREADS_INIT TRUE CACHE BOOL "" FORCE)
 set(Threads_FOUND TRUE CACHE BOOL "" FORCE)
@@ -33,14 +31,9 @@ set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "" FORCE)
 
-# 如果构建脚本传入了额外的库搜索路径，添加之
+# 添加库搜索路径（由命令行传入的 EXTRA_LIB_DIRS）
 if(DEFINED EXTRA_LIB_DIRS)
     link_directories(${EXTRA_LIB_DIRS})
-endif()
-
-# 强制使用静态 libstdc++（由构建脚本找到并传入全路径）
-if(DEFINED STDCPP_A_PATH)
-    set(CMAKE_CXX_STANDARD_LIBRARIES "${STDCPP_A_PATH}" CACHE STRING "" FORCE)
 endif()
 
 add_subdirectory(submodules/boringssl EXCLUDE_FROM_ALL)
