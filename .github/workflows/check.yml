@@ -12,20 +12,15 @@ jobs:
     name: 构建 Linux aarch64
     runs-on: ubuntu-latest
     steps:
-      - name: 下载并安装 protoc
-        run: |
-          wget https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip
-          sudo unzip -j protoc-*.zip bin/protoc -d /usr/local/bin/
-          sudo chmod +x /usr/local/bin/protoc
-
       - name: 安装 AArch64 交叉编译库
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
       - name: 环境检查
-        env:
-          PROTOC_PATH: /usr/local/bin/protoc
-          LINUX_SYSROOT: /usr/aarch64-linux-gnu
-        run: find /usr -name "libstdc++.a" 2>/dev/null
+        run: find /usr -path "/usr/local" -prune -o -name "libstdc++.a" -print 2>/dev/null
+             find /usr -path "/usr/local" -prune -o -name "libgcc.a" -print 2>/dev/null
+             find /usr -path "/usr/local" -prune -o -name "crtbeginT.o" -print 2>/dev/null
+             find /usr -path "/usr/local" -prune -o -name "crtend.o" -print 2>/dev/null
+             find /usr -path "/usr/local" -prune -o -name "crt1.o" -print 2>/dev/null
 
 
