@@ -23,36 +23,35 @@ LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 [[ ! -d "${LINUX_SYSROOT}" ]] && echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在" && exit 1
 
-# 使用 aarch64-linux-gnu-gcc 定位 libstdc++.a 和 GCC 库目录
+# 使用 aarch64-linux-gnu-gcc 定位 GCC 版本目录
 if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
     echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-aarch64-linux-gnu"
     exit 1
 fi
-
-GCC_LIB_DIR=$(aarch64-linux-gnu-gcc -print-file-name=libstdc++.a | xargs dirname)
-if [[ ! -d "${GCC_LIB_DIR}" ]]; then
-    echo "错误：无法确定 libstdc++.a 所在目录"
-    exit 1
-fi
-echo ">>> libstdc++.a 目录: ${GCC_LIB_DIR}"
-
 CRTBEGIN_T_DIR=$(aarch64-linux-gnu-gcc -print-file-name=crtbeginT.o | xargs dirname)
-if [[ ! -d "${CRTBEGIN_T_DIR}" ]]; then
-    echo "错误：无法确定 crtbeginT.o 所在目录"
-    exit 1
-fi
+[[ ! -d "${CRTBEGIN_T_DIR}" ]] && echo "错误：无法确定 crtbeginT.o 目录" && exit 1
 echo ">>> crtbeginT.o 目录: ${CRTBEGIN_T_DIR}"
 
+# 目标平台 zlib 静态库路径（由 zlib1g-dev:arm64 提供）
+ZLIB_LIBRARY="${LINUX_SYSROOT}/usr/lib/libz.a"
+if [[ ! -f "${ZLIB_LIBRARY}" ]]; then
+    echo "错误：未找到目标平台的 libz.a，请在工作流中安装 zlib1g-dev:arm64"
+    exit 1
+fi
+ZLIB_INCLUDE_DIR="${LINUX_SYSROOT}/usr/include"
+echo ">>> ZLIB 库: ${ZLIB_LIBRARY}"
+
 # 库搜索路径
-export LIBRARY_PATH="${GCC_LIB_DIR}:${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr/lib:${LIBRARY_PATH}"
+export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr/lib:${LIBRARY_PATH}"
 
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a -lstdc++"
 
-LINKER_FLAGS="-fuse-ld=lld -static -L${GCC_LIB_DIR} -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib"
+LINKER_FLAGS="-fuse-ld=lld -static -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib"
 
+# 强制跳过所有 CMake 测试，直接配置
 cmake -GNinja \
     -B "${BUILD_DIR}" \
     -DCMAKE_SYSTEM_NAME=Linux \
@@ -65,7 +64,9 @@ cmake -GNinja \
     -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
     -DCMAKE_C_COMPILER_WORKS=ON \
     -DCMAKE_CXX_COMPILER_WORKS=ON \
-    -DEXTRA_LIB_DIRS="${GCC_LIB_DIR};${CRTBEGIN_T_DIR}" \
+    -DZLIB_LIBRARY="${ZLIB_LIBRARY}" \
+    -DZLIB_INCLUDE_DIR="${ZLIB_INCLUDE_DIR}" \
+    -DEXTRA_LIB_DIRS="${CRTBEGIN_T_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DPNG_SHARED=OFF \
     -DZLIB_USE_STATIC_LIBS=ON \
