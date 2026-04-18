@@ -3,6 +3,8 @@ set -e
 
 TARGET_TRIPLE="aarch64-linux-gnu"
 BUILD_DIR="build_aarch64_linux"
+ZLIB_VERSION="1.3.1"
+ZLIB_INSTALL_DIR="/tmp/zlib-aarch64"
 
 help() {
     script_name=$(basename "$0")
@@ -37,8 +39,32 @@ if [[ ! -d "${SYSROOT}" ]]; then
     exit 1
 fi
 
+# ---------- 下载并编译 zlib 静态库（交叉编译） ----------
+if [[ ! -f "${ZLIB_INSTALL_DIR}/lib/libz.a" ]]; then
+    echo "正在下载并交叉编译 zlib..."
+    wget -q "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz" -O zlib.tar.gz
+    tar -xzf zlib.tar.gz
+    pushd "zlib-${ZLIB_VERSION}"
+    # 设置交叉编译环境
+    export CC="${TARGET_TRIPLE}-gcc"
+    export AR="${TARGET_TRIPLE}-ar"
+    export RANLIB="${TARGET_TRIPLE}-ranlib"
+    export CFLAGS="--sysroot=${SYSROOT}"
+    # 配置为静态库并指定安装路径
+    ./configure --prefix="${ZLIB_INSTALL_DIR}" --static
+    make -j$(nproc)
+    make install
+    popd
+    rm -rf "zlib-${ZLIB_VERSION}" zlib.tar.gz
+    echo "zlib 静态库编译完成: ${ZLIB_INSTALL_DIR}/lib/libz.a"
+else
+    echo "检测到已存在 zlib 静态库，跳过编译"
+fi
+
+# ---------- 清理旧构建目录 ----------
 rm -rf "${BUILD_DIR}"
 
+# ---------- 切换 CMake 配置文件 ----------
 echo "切换到 Linux aarch64 专用 CMake 配置文件..."
 mv CMakeLists.txt CMakeLists-android.bak
 cp CMakeLists-aarch64-linux.txt CMakeLists.txt
@@ -51,6 +77,7 @@ restore_cmake() {
 }
 trap restore_cmake EXIT
 
+# ---------- CMake 配置 ----------
 echo "开始 CMake 配置..."
 cmake -GNinja \
     -B "${BUILD_DIR}" \
@@ -59,7 +86,7 @@ cmake -GNinja \
     -DCMAKE_C_COMPILER="${TARGET_TRIPLE}-gcc" \
     -DCMAKE_CXX_COMPILER="${TARGET_TRIPLE}-g++" \
     -DCMAKE_SYSROOT="${SYSROOT}" \
-    -DCMAKE_FIND_ROOT_PATH="${SYSROOT}" \
+    -DCMAKE_FIND_ROOT_PATH="${SYSROOT};${ZLIB_INSTALL_DIR}" \
     -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM="NEVER" \
     -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY="ONLY" \
     -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE="ONLY" \
@@ -73,9 +100,11 @@ cmake -GNinja \
     -DCMAKE_THREAD_LIBS_INIT="-lpthread" \
     -DCMAKE_HAVE_THREADS_LIBRARY=TRUE
 
+# ---------- 编译 aapt2 ----------
 echo "开始编译..."
 ninja -C "${BUILD_DIR}" aapt2
 
+# ---------- 剥离调试符号 ----------
 ${TARGET_TRIPLE}-strip --strip-unneeded "${BUILD_DIR}/bin/aapt2"
 
 echo "构建完成！"
