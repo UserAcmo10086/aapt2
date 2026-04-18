@@ -30,7 +30,7 @@ if [[ ! -d "${LINUX_SYSROOT}" ]]; then
     exit 1
 fi
 
-# 动态探测 GCC 版本目录（包含 crtbeginT.o、libgcc.a、libstdc++.a）
+# 动态探测 GCC 交叉编译器库目录（包含 crtbeginT.o、libgcc.a、libstdc++.a）
 GCC_BASE="/usr/lib/gcc-cross/aarch64-linux-gnu"
 if [[ ! -d "${GCC_BASE}" ]]; then
     echo "错误：GCC 交叉编译器目录 ${GCC_BASE} 不存在，请安装 gcc-aarch64-linux-gnu"
@@ -44,14 +44,18 @@ if [[ -z "${GCC_VER_DIR}" ]]; then
 fi
 echo ">>> 使用 GCC 版本目录: ${GCC_VER_DIR}"
 
+# 设置库搜索路径（用于 CMake 的 find_library）
+export LIBRARY_PATH="${GCC_VER_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr/lib:${LIBRARY_PATH}"
+
 # 编译标志
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
 
-# 链接器标志
+# 链接器标志：静态链接，添加 GCC 库目录和 sysroot 库目录
 LINKER_FLAGS="-fuse-ld=lld -static"
+LINKER_FLAGS+=" -L${GCC_VER_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib"
 
 echo ">>> sysroot: ${LINUX_SYSROOT}"
 echo ">>> 开始 CMake 配置..."
@@ -65,15 +69,11 @@ cmake -GNinja \
     -DCMAKE_C_FLAGS="${CFLAGS}" \
     -DCMAKE_CXX_FLAGS="${CXXFLAGS}" \
     -DCMAKE_EXE_LINKER_FLAGS="${LINKER_FLAGS}" \
-    -DGCC_VER_DIR="${GCC_VER_DIR}" \
+    -DGCC_LIB_SEARCH_PATH="${GCC_VER_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DPNG_SHARED=OFF \
     -DZLIB_USE_STATIC_LIBS=ON \
-    -DTHREADS_PREFER_PTHREAD_FLAG=ON \
-    -DCMAKE_USE_PTHREADS_INIT=TRUE \
-    -DThreads_FOUND=TRUE \
-    -DCMAKE_THREAD_LIBS_INIT="-lpthread" \
-    -DCMAKE_HAVE_THREADS_LIBRARY=TRUE
+    -DTHREADS_PREFER_PTHREAD_FLAG=ON
 
 echo ">>> 开始编译 aapt2..."
 ninja -C "${BUILD_DIR}" aapt2
