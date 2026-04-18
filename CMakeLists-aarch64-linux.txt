@@ -31,12 +31,10 @@ set(Threads_FOUND TRUE CACHE BOOL "Threads found" FORCE)
 set(CMAKE_THREAD_LIBS_INIT "-lpthread" CACHE STRING "Thread library" FORCE)
 
 # ===== 强制指定 zlib 路径（解决 FindZLIB 找不到库的问题） =====
-# 同时设置 ZLIB_LIBRARY (FindZLIB.cmake 需要的) 和 ZLIB_LIBRARIES (常用变量)
 set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
 set(ZLIB_LIBRARY /usr/aarch64-linux-gnu/lib/libz.a CACHE FILEPATH "" FORCE)
 set(ZLIB_LIBRARIES ${ZLIB_LIBRARY} CACHE STRING "" FORCE)
 set(ZLIB_INCLUDE_DIR /usr/aarch64-linux-gnu/include CACHE PATH "" FORCE)
-# 标记为已找到，跳过系统搜索
 mark_as_advanced(ZLIB_LIBRARY ZLIB_INCLUDE_DIR)
 
 # protobuf 选项
@@ -55,3 +53,10 @@ add_subdirectory(submodules/protobuf EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
+
+# ===== 修复 GCC 13 交叉编译时的内部编译器错误（ICE） =====
+# 为 ResourceTable.cpp 降低优化级别至 -O1，避免触发优化器 bug
+set_source_files_properties(
+    ${PROJECT_SOURCE_DIR}/submodules/base/tools/aapt2/ResourceTable.cpp
+    PROPERTIES COMPILE_FLAGS "-O1"
+)
