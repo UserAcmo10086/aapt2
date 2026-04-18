@@ -33,10 +33,10 @@ set(Threads_FOUND TRUE CACHE BOOL "Threads found" FORCE)
 set(CMAKE_THREAD_LIBS_INIT "-lpthread" CACHE STRING "Thread library" FORCE)
 
 # ===== 强制指定 zlib 路径，跳过 find_package 查找 =====
-# 确保 libpng 能直接使用交叉编译环境中的 zlib 静态库
+# 注意：ZLIB_INSTALL_DIR 在 CMake 命令行中通过 CMAKE_FIND_ROOT_PATH 传递
 set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
-set(ZLIB_LIBRARIES /usr/lib/aarch64-linux-gnu/libz.a CACHE FILEPATH "" FORCE)
-set(ZLIB_INCLUDE_DIR /usr/include/aarch64-linux-gnu CACHE PATH "" FORCE)
+set(ZLIB_LIBRARIES /tmp/zlib-aarch64/lib/libz.a CACHE FILEPATH "" FORCE)
+set(ZLIB_INCLUDE_DIR /tmp/zlib-aarch64/include CACHE PATH "" FORCE)
 
 # protobuf 选项
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
