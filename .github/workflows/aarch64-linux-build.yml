@@ -57,6 +57,8 @@ jobs:
           cd /
           rm -rf "$TEMP_DIR"
 
+          find /usr -name "stdlib.h" 2>/dev/null
+
       - name: 获取 protoc 编译器
         run: |
           wget https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip
