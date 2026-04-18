@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     name: 交叉编译 Linux aarch64
-    runs-on: ubuntu-22.04      # 使用 Ubuntu 22.04，其默认 GCC 11 交叉工具链可用且无 ICE
+    runs-on: ubuntu-22.04
     steps:
       - name: 检出代码（包含子模块）
         uses: actions/checkout@v4
@@ -20,7 +20,6 @@ jobs:
       - name: 安装 GCC 11 aarch64 交叉编译工具链并部署 zlib arm64 库
         run: |
           set -e
-          # Ubuntu 22.04 默认提供 gcc-11-aarch64-linux-gnu
           sudo apt-get update
           sudo apt-get install -y \
             gcc-11-aarch64-linux-gnu \
@@ -30,11 +29,9 @@ jobs:
             ninja-build \
             wget
 
-          # 创建软链接使编译器可直接通过 aarch64-linux-gnu-gcc-11 调用
           sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-11 100
           sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-11 100
 
-          # 手动部署 zlib arm64 开发文件到 sysroot
           TEMP_DIR=$(mktemp -d)
           cd "$TEMP_DIR"
 
