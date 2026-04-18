@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14.2)
 
-# 强制跳过交叉编译时的编译器测试（避免因静态库缺失报错）
+# 强制跳过交叉编译时的编译器测试
 set(CMAKE_C_COMPILER_WORKS TRUE CACHE BOOL "Skip C compiler test" FORCE)
 set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE BOOL "Skip CXX compiler test" FORCE)
 set(CMAKE_C_COMPILER_ABI_COMPILED TRUE CACHE BOOL "Skip C ABI detection" FORCE)
@@ -13,7 +13,6 @@ set(CMAKE_CXX_STANDARD 20)
 
 enable_language(ASM)
 
-# 全局编译标志：将 -fcolor-diagnostics 替换为 GCC 兼容的 -fdiagnostics-color=always
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always -fPIC -Wno-attributes -std=gnu11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always -fPIC -Wno-attributes -std=gnu++2a")
 set(CMAKE_EXE_LINKER_FLAGS "-static")
@@ -23,21 +22,18 @@ set(SRC ${PROJECT_SOURCE_DIR}/submodules)
 
 add_definitions(-D_FILE_OFFSET_BITS=64)
 
-# 强制设置 pthread 变量，避免交叉编译检测失败
 set(THREADS_PREFER_PTHREAD_FLAG ON CACHE BOOL "Prefer -pthread flag" FORCE)
 set(CMAKE_HAVE_THREADS_LIBRARY TRUE CACHE BOOL "Have threads library" FORCE)
 set(CMAKE_USE_PTHREADS_INIT TRUE CACHE BOOL "Use pthreads" FORCE)
 set(Threads_FOUND TRUE CACHE BOOL "Threads found" FORCE)
 set(CMAKE_THREAD_LIBS_INIT "-lpthread" CACHE STRING "Thread library" FORCE)
 
-# ===== 强制指定 zlib 路径（解决 FindZLIB 找不到库的问题） =====
 set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
 set(ZLIB_LIBRARY /usr/aarch64-linux-gnu/lib/libz.a CACHE FILEPATH "" FORCE)
 set(ZLIB_LIBRARIES ${ZLIB_LIBRARY} CACHE STRING "" FORCE)
 set(ZLIB_INCLUDE_DIR /usr/aarch64-linux-gnu/include CACHE PATH "" FORCE)
 mark_as_advanced(ZLIB_LIBRARY ZLIB_INCLUDE_DIR)
 
-# protobuf 选项
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
