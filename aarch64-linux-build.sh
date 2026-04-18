@@ -43,7 +43,6 @@ CMAKE_C_COMPILER="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
 CMAKE_CXX_COMPILER="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
 
 # Linux AArch64 交叉编译 sysroot（由 libc6-dev-arm64-cross 提供）
-# 若未设置环境变量，使用默认路径
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 
 if [[ ! -d "${LINUX_SYSROOT}" ]]; then
@@ -51,9 +50,22 @@ if [[ ! -d "${LINUX_SYSROOT}" ]]; then
     exit 1
 fi
 
+# 定位 GCC 库目录（包含 crtbeginT.o、libgcc.a 等）
+GCC_LIB_DIR=""
+if command -v aarch64-linux-gnu-gcc &> /dev/null; then
+    GCC_LIB_DIR=$(aarch64-linux-gnu-gcc -print-libgcc-file-name | xargs dirname)
+    echo ">>> 找到 GCC 库目录: ${GCC_LIB_DIR}"
+else
+    echo "警告：未找到 aarch64-linux-gnu-gcc，链接时可能缺少 libgcc。"
+fi
+
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT}"
-# 强制静态链接，并指定库路径确保 lld 能找到 crt*.o 和 libc.a
-LINKER_FLAGS="-fuse-ld=lld -static -L${LINUX_SYSROOT}/usr/lib -L${LINUX_SYSROOT}/lib"
+# 强制静态链接，并添加 sysroot 库路径和 GCC 库路径
+LINKER_FLAGS="-fuse-ld=lld -static"
+LINKER_FLAGS+=" -L${LINUX_SYSROOT}/usr/lib -L${LINUX_SYSROOT}/lib"
+if [[ -n "${GCC_LIB_DIR}" ]]; then
+    LINKER_FLAGS+=" -L${GCC_LIB_DIR}"
+fi
 
 echo ">>> 使用的 sysroot: ${LINUX_SYSROOT}"
 echo ">>> 开始配置 CMake (目标: Linux aarch64)..."
