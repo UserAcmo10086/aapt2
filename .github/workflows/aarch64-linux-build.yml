@@ -1,7 +1,7 @@
 name: 构建 Linux aarch64 版 aapt2 (NDK Clang)
 
 on:
-  workflow_dispatch:          # 允许手动触发
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -12,13 +12,11 @@ jobs:
     name: 构建 Linux aarch64
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出代码（包含子模块）
       - name: 检出代码及子模块
         uses: actions/checkout@v4
         with:
           submodules: 'true'
 
-      # 2. 安装 NDK r25c（使用 setup-ndk action）
       - name: 安装 NDK r25c
         uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -26,33 +24,37 @@ jobs:
           ndk-version: r25c
           add-to-path: false
 
-      # 3. 获取 protoc（协议缓冲区编译器）
       - name: 下载并安装 protoc
         run: |
           wget https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip
           sudo unzip -j protoc-*.zip bin/protoc -d /usr/local/bin/
           sudo chmod +x /usr/local/bin/protoc
 
-      # 4. 应用轻量级补丁（修正路径和符号链接）
+      # 新增步骤：安装 Linux AArch64 交叉编译库（提供 crt*.o 和 libc 等）
+      - name: 安装 AArch64 交叉编译工具链
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+
       - name: 应用补丁
         run: bash ./aarch64-linux-patch.sh
 
-      # 5. 构建 aapt2
       - name: 构建 aapt2 (Linux aarch64)
         env:
           ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
           PROTOC_PATH: /usr/local/bin/protoc
+          # 指定 Linux sysroot 路径
+          LINUX_SYSROOT: /usr/aarch64-linux-gnu
         run: bash ./aarch64-linux-build.sh
 
-      # 6. 上传构建产物
       - name: 上传 aapt2 可执行文件
         uses: actions/upload-artifact@v4
         with:
           name: aapt2-linux-aarch64
           path: build_aarch64_linux/bin/aapt2
-          archive: false                    # 不压缩，保持可执行文件原始状态
+          archive: false
 
-  # 可选：自动发布（需配置 semantic-release 和对应 secrets）
   release:
     name: 发布构建产物
     needs: build
