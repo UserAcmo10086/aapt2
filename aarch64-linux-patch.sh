@@ -29,17 +29,19 @@ if [[ -f "$STRINGSTREAM_FILE" ]]; then
     echo "已修复 StringStream.cpp 缺失的头文件"
 fi
 
-# ===== 使用 Perl 精确替换 ResourceTable.cpp 中的泛型 lambda =====
+# ===== 修复 ResourceTable.cpp 中的泛型 lambda ICE =====
 RESOURCETABLE_FILE="submodules/base/tools/aapt2/ResourceTable.cpp"
 if [[ -f "$RESOURCETABLE_FILE" ]]; then
-    # 该替换将匹配所有形如：
-    #   auto it = std::lower_bound(el.begin(), el.end(), value, [&](auto& lhs, auto& rhs) {
-    #       return Comparer::operator()(lhs, rhs);
-    #   });
-    # 并替换为：
-    #   auto it = std::lower_bound(el.begin(), el.end(), value, Comparer());
     perl -0777 -pi -e 's|auto\s+it\s*=\s*std::lower_bound\s*\(\s*el\.begin\s*\(\s*\)\s*,\s*el\.end\s*\(\s*\)\s*,\s*value\s*,\s*\[&\s*\]\s*\(\s*auto\s*&\s*lhs\s*,\s*auto\s*&\s*rhs\s*\)\s*\{\s*return\s+Comparer::operator\s*\(\s*\)\s*\(\s*lhs\s*,\s*rhs\s*\)\s*;\s*\}\s*\)\s*;|auto it = std::lower_bound(el.begin(), el.end(), value, Comparer());|gs' "$RESOURCETABLE_FILE"
     echo "已修复 ResourceTable.cpp 中的泛型 lambda"
+fi
+
+# ===== 修复 logging.cpp 中的 Android 特有 __builtin_available =====
+LOGGING_FILE="submodules/libbase/logging.cpp"
+if [[ -f "$LOGGING_FILE" ]]; then
+    # 将所有 __builtin_available(android 30, *) 替换为 false
+    perl -pi -e 's/__builtin_available\s*\(\s*android\s+\d+\s*,\s*\*\s*\)/false/g' "$LOGGING_FILE"
+    echo "已修复 logging.cpp 中的 __builtin_available"
 fi
 
 # 创建 googletest 符号链接
