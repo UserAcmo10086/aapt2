@@ -32,14 +32,18 @@ CRTBEGIN_T_DIR=$(aarch64-linux-gnu-gcc -print-file-name=crtbeginT.o | xargs dirn
 [[ ! -d "${CRTBEGIN_T_DIR}" ]] && echo "错误：无法确定 crtbeginT.o 目录" && exit 1
 echo ">>> crtbeginT.o 目录: ${CRTBEGIN_T_DIR}"
 
-# 修正后的 libz.a 路径
 ZLIB_LIBRARY="${LINUX_SYSROOT}/lib/libz.a"
 if [[ ! -f "${ZLIB_LIBRARY}" ]]; then
     echo "错误：未找到目标平台的 libz.a，请在工作流中安装 zlib1g-dev:arm64"
     exit 1
 fi
-ZLIB_INCLUDE_DIR="${LINUX_SYSROOT}/usr/include"
+ZLIB_INCLUDE_DIR="${LINUX_SYSROOT}/include"
+if [[ ! -f "${ZLIB_INCLUDE_DIR}/zlib.h" ]]; then
+    echo "错误：未找到目标平台的 zlib.h，请确认安装"
+    exit 1
+fi
 echo ">>> ZLIB 库: ${ZLIB_LIBRARY}"
+echo ">>> ZLIB 头文件: ${ZLIB_INCLUDE_DIR}"
 
 export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr/lib:${LIBRARY_PATH}"
 
