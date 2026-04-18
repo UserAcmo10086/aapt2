@@ -1,4 +1,3 @@
-
 #!/bin/bash
 set -e
 
@@ -53,39 +52,62 @@ fi
 
 # 获取 compiler-rt 资源目录
 NDK_CLANG_RESOURCE_DIR="$("${CMAKE_C_COMPILER}" --print-resource-dir)"
-# compiler-rt 库的实际路径（包含 aarch64 子目录）
-COMPILER_RT_LIB="${NDK_CLANG_RESOURCE_DIR}/lib/linux/aarch64"
+# compiler-rt 库可能位于 lib/linux 或 lib/linux/aarch64，动态探测
+COMPILER_RT_BASE="${NDK_CLANG_RESOURCE_DIR}/lib/linux"
+if [[ -d "${COMPILER_RT_BASE}/aarch64" ]]; then
+    COMPILER_RT_LIB="${COMPILER_RT_BASE}/aarch64"
+else
+    COMPILER_RT_LIB="${COMPILER_RT_BASE}"
+fi
 
-if [[ ! -d "${COMPILER_RT_LIB}" ]]; then
-    echo "错误：compiler-rt 库目录不存在: ${COMPILER_RT_LIB}"
+echo ">>> compiler-rt 库目录: ${COMPILER_RT_LIB}"
+
+# 查找 crtbegin.o 和 crtend.o 的真实位置（可能也在 sysroot 中）
+CRTBEGIN_PATH=$(find "${COMPILER_RT_LIB}" "${LINUX_SYSROOT}" -name "crtbegin.o" 2>/dev/null | head -1)
+CRTEND_PATH=$(find "${COMPILER_RT_LIB}" "${LINUX_SYSROOT}" -name "crtend.o" 2>/dev/null | head -1)
+
+if [[ -z "${CRTBEGIN_PATH}" ]] || [[ -z "${CRTEND_PATH}" ]]; then
+    echo "错误：找不到 crtbegin.o 或 crtend.o，请确保已安装 libc6-dev-arm64-cross 和 gcc-aarch64-linux-gnu。"
     exit 1
 fi
 
-echo ">>> compiler-rt 库路径: ${COMPILER_RT_LIB}"
+CRT_DIR=$(dirname "${CRTBEGIN_PATH}")
+echo ">>> crt 文件目录: ${CRT_DIR}"
 
-# 为静态链接创建符号链接 crtbeginT.o -> crtbegin.o
-if [[ -f "${COMPILER_RT_LIB}/crtbegin.o" ]] && [[ ! -f "${COMPILER_RT_LIB}/crtbeginT.o" ]]; then
-    echo ">>> 创建符号链接 crtbeginT.o -> crtbegin.o"
-    ln -sf crtbegin.o "${COMPILER_RT_LIB}/crtbeginT.o"
+# 为静态链接准备 crtbeginT.o（如果不存在则创建符号链接）
+if [[ ! -f "${CRT_DIR}/crtbeginT.o" ]]; then
+    echo ">>> 创建符号链接 ${CRT_DIR}/crtbeginT.o -> ${CRTBEGIN_PATH}"
+    ln -sf "$(basename "${CRTBEGIN_PATH}")" "${CRT_DIR}/crtbeginT.o"
 fi
 
-# 基础编译标志：目标三元组 + sysroot + 使用 compiler-rt 和 libunwind
+# 查找 compiler-rt builtins 静态库（可能命名为 libclang_rt.builtins-aarch64.a 或类似）
+BUILTINS_LIB=$(find "${COMPILER_RT_LIB}" -name "libclang_rt.builtins*.a" 2>/dev/null | head -1)
+if [[ -z "${BUILTINS_LIB}" ]]; then
+    echo "错误：找不到 compiler-rt builtins 静态库。"
+    exit 1
+fi
+BUILTINS_LIB_NAME=$(basename "${BUILTINS_LIB}")
+BUILTINS_LIB_DIR=$(dirname "${BUILTINS_LIB}")
+echo ">>> compiler-rt builtins 库: ${BUILTINS_LIB}"
+
+# 备选 GCC 库目录（如果需要）
+GCC_LIB_DIR=""
+if command -v aarch64-linux-gnu-gcc &> /dev/null; then
+    GCC_LIB_DIR=$(aarch64-linux-gnu-gcc -print-libgcc-file-name | xargs dirname)
+    echo ">>> 备用 GCC 库目录: ${GCC_LIB_DIR}"
+fi
+
+# 基础编译标志
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT}"
 COMMON_FLAGS+=" -rtlib=compiler-rt -unwindlib=libunwind"
 
 # 静态链接标志
 LINKER_FLAGS="-fuse-ld=lld -static"
-# 添加 sysroot 库路径
 LINKER_FLAGS+=" -L${LINUX_SYSROOT}/usr/lib -L${LINUX_SYSROOT}/lib"
-# 添加 compiler-rt 库路径
-LINKER_FLAGS+=" -L${COMPILER_RT_LIB}"
-# 显式链接 compiler-rt builtins 静态库
-LINKER_FLAGS+=" -l:libclang_rt.builtins-aarch64.a"
-
-# 备选 GCC 库目录（如果需要）
-if command -v aarch64-linux-gnu-gcc &> /dev/null; then
-    GCC_LIB_DIR=$(aarch64-linux-gnu-gcc -print-libgcc-file-name | xargs dirname)
-    echo ">>> 备用 GCC 库目录: ${GCC_LIB_DIR}"
+LINKER_FLAGS+=" -L${CRT_DIR}"
+LINKER_FLAGS+=" -L${BUILTINS_LIB_DIR}"
+LINKER_FLAGS+=" -l:${BUILTINS_LIB_NAME}"
+if [[ -n "${GCC_LIB_DIR}" ]]; then
     LINKER_FLAGS+=" -L${GCC_LIB_DIR}"
 fi
 
