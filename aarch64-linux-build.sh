@@ -1,4 +1,3 @@
-
 #!/bin/bash
 set -e
 
@@ -15,8 +14,6 @@ fi
 
 # 构建目录名称
 BUILD_DIR="build_aarch64_linux"
-
-# 清理并创建构建目录
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 
@@ -39,47 +36,67 @@ restore_cmake() {
 }
 trap restore_cmake EXIT
 
-# NDK 工具链基础路径
+# 工具链路径
 TOOLCHAIN="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64"
+CLANG_VER=$(ls "${TOOLCHAIN}/lib/clang" | head -1)  # 例如 14.0.6
+CLANG_LIB_BASE="${TOOLCHAIN}/lib/clang/${CLANG_VER}/lib/linux"
+
+# 查找包含 compiler-rt 静态库的目录（可能没有 aarch64-unknown-linux-gnu 子目录）
+# 在 linux 目录下寻找 libclang_rt.builtins-aarch64.a
+CRT_LIB_DIR=""
+if [[ -f "${CLANG_LIB_BASE}/libclang_rt.builtins-aarch64.a" ]]; then
+    CRT_LIB_DIR="${CLANG_LIB_BASE}"
+else
+    # 尝试查找子目录
+    CRT_LIB_DIR=$(find "${CLANG_LIB_BASE}" -type f -name "libclang_rt.builtins-aarch64.a" -printf "%h\n" 2>/dev/null | head -1)
+    if [[ -z "${CRT_LIB_DIR}" ]]; then
+        echo "错误：在 ${CLANG_LIB_BASE} 下未找到 libclang_rt.builtins-aarch64.a"
+        exit 1
+    fi
+fi
+
+echo ">>> NDK compiler-rt 目录: ${CRT_LIB_DIR}"
+
+# Linux sysroot 由系统的 libc6-dev-arm64-cross 提供（安装后位于 /usr/aarch64-linux-gnu）
+LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
+if [[ ! -d "${LINUX_SYSROOT}" ]]; then
+    echo "错误：Linux sysroot 目录 ${LINUX_SYSROOT} 不存在，请安装 libc6-dev-arm64-cross。"
+    exit 1
+fi
 
 # 编译器
 CMAKE_C_COMPILER="${TOOLCHAIN}/bin/clang"
 CMAKE_CXX_COMPILER="${TOOLCHAIN}/bin/clang++"
 
-# NDK 自带的 Linux 目标 sysroot（包含标准 C 头文件和 crt1.o 等）
-NDK_LINUX_SYSROOT="${TOOLCHAIN}/sysroot"
-# compiler-rt 和 libc++ 静态库路径（Linux aarch64）
-NDK_LIB_DIR="${TOOLCHAIN}/lib/clang/14.0.7/lib/linux"
-if [[ ! -d "${NDK_LIB_DIR}" ]]; then
-    # 兼容不同 NDK 版本
-    NDK_LIB_DIR=$(find "${TOOLCHAIN}/lib/clang" -maxdepth 3 -type d -name "aarch64-unknown-linux-gnu" 2>/dev/null | head -1)
-    if [[ -z "${NDK_LIB_DIR}" ]]; then
-        echo "错误：无法找到 NDK 中的 Linux aarch64 静态库目录。"
-        exit 1
-    fi
-fi
-
-echo ">>> NDK Linux 静态库目录: ${NDK_LIB_DIR}"
-
-# 编译标志：目标为 aarch64-linux-gnu，使用 NDK sysroot
-COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${NDK_LINUX_SYSROOT}"
+# 编译标志：目标 Linux，使用系统 sysroot，启用 compiler-rt 和 libc++
+COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT}"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
-CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
+CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a -stdlib=libc++ -rtlib=compiler-rt"
 
-# 链接器标志：完全静态，使用 compiler-rt 和 libc++
-# -nostdlib 避免自动链接 GCC 库，手动指定启动文件和静态库
-START_FILES="${NDK_LIB_DIR}/crt1.o ${NDK_LIB_DIR}/crti.o ${NDK_LIB_DIR}/crtbeginT.o"
-END_FILES="${NDK_LIB_DIR}/crtend.o ${NDK_LIB_DIR}/crtn.o"
-STATIC_LIBS="-l:libc++.a -l:libc++abi.a -l:libunwind.a -l:libc.a -l:libm.a -l:libdl.a -l:libpthread.a -l:librt.a"
+# 链接器标志：完全静态，手动指定启动文件和静态库
+START_FILES="${LINUX_SYSROOT}/usr/lib/crt1.o ${LINUX_SYSROOT}/usr/lib/crti.o"
+END_FILES="${LINUX_SYSROOT}/usr/lib/crtn.o"
+
+STATIC_LIBS="-l:libc++.a -l:libc++abi.a -l:libunwind.a"
+STATIC_LIBS+=" -l:libc.a -l:libm.a -l:libdl.a -l:libpthread.a -l:librt.a"
+
+# 添加 compiler-rt builtins 库
+COMPILER_RT_LIB="${CRT_LIB_DIR}/libclang_rt.builtins-aarch64.a"
+if [[ -f "${COMPILER_RT_LIB}" ]]; then
+    STATIC_LIBS+=" ${COMPILER_RT_LIB}"
+else
+    echo "警告：未找到 compiler-rt builtins 库，链接可能失败。"
+fi
 
 LINKER_FLAGS="-fuse-ld=lld -static -nostdlib"
-LINKER_FLAGS+=" -L${NDK_LIB_DIR}"
+LINKER_FLAGS+=" -L${LINUX_SYSROOT}/usr/lib -L${LINUX_SYSROOT}/lib"
+LINKER_FLAGS+=" -L${CRT_LIB_DIR}"
 LINKER_FLAGS+=" ${START_FILES}"
 LINKER_FLAGS+=" ${STATIC_LIBS}"
 LINKER_FLAGS+=" ${END_FILES}"
 
-# 强制 CMake 使用正确的 pthread 设置
+# 强制 CMake 识别 pthread
 PTHREAD_CFLAGS="-DCMAKE_USE_PTHREADS_INIT=TRUE -DThreads_FOUND=TRUE"
 PTHREAD_LDFLAGS="-DCMAKE_THREAD_LIBS_INIT=-lpthread -DCMAKE_HAVE_THREADS_LIBRARY=TRUE"
 
