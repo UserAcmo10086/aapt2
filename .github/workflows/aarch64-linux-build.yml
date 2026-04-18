@@ -31,10 +31,10 @@ jobs:
           sudo unzip -j protoc-*.zip bin/protoc -d /usr/local/bin/
           sudo chmod +x /usr/local/bin/protoc
 
-      - name: 安装 Linux AArch64 sysroot（仅提供 crt 和 libc）
+      - name: 安装 AArch64 交叉编译库
         run: |
           sudo apt-get update
-          sudo apt-get install -y libc6-dev-arm64-cross
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
 
       - name: 应用补丁
         run: bash ./aarch64-linux-patch.sh
