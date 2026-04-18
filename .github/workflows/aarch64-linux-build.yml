@@ -1,7 +1,7 @@
 name: 构建 Linux aarch64 版 aapt2
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:          # 允许手动触发工作流
   push:
     branches:
       - main
@@ -17,13 +17,14 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: 安装 aarch64 交叉编译工具链
+      - name: 安装 aarch64 交叉编译工具链及静态库
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
             binutils-aarch64-linux-gnu \
+            libc6-dev-arm64-cross \
             ninja-build
 
       - name: 获取 protoc 编译器
@@ -46,7 +47,7 @@ jobs:
         with:
           name: aapt2-linux-aarch64
           path: build_aarch64_linux/bin/aapt2
-          archive: false
+          archive: false    # 直接上传文件，不压缩打包
 
   release:
     needs: build
@@ -67,7 +68,7 @@ jobs:
           name: aapt2-linux-aarch64
           path: artifacts/
 
-      - name: 生成构建来源证明（可选）
+      - name: 生成构建来源证明（仅当推送 main 分支时）
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         uses: actions/attest-build-provenance@v2
         with:
