@@ -1,25 +1,16 @@
-# ============================================================================
-# GitHub Actions 工作流: aarch64-linux-build.yml
-# 功能: 使用 Linaro 工具链交叉编译 aarch64 Linux 平台的 aapt2 静态可执行文件
-# 触发条件:
-#   - 手动触发 (workflow_dispatch)
-#   - 推送到 main 或 dev 分支
-# ============================================================================
-
 name: Build aarch64 Linux aapt2
 
 on:
-  workflow_dispatch:          # 允许手动触发
+  workflow_dispatch:
   push:
     branches:
       - main
       - dev
-    paths-ignore:             # 忽略非代码文件的变更，避免无意义触发
+    paths-ignore:
       - '**.md'
       - '.gitignore'
       - 'LICENSE'
 
-# 并发控制：同一分支上只保留最新运行，自动取消旧运行
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -27,100 +18,43 @@ concurrency:
 jobs:
   build-linux-aarch64:
     name: 交叉编译 aarch64 Linux 版 aapt2
-    runs-on: ubuntu-22.04      # 使用 Ubuntu 22.04 环境
-    strategy:
-      fail-fast: false
-      matrix:
-        # 仅构建 aarch64 架构，如需扩展可在此添加
-        target_arch: [aarch64]
+    runs-on: ubuntu-22.04
     steps:
-      # ------------------------------------------------------------
-      # 步骤 1: 检出代码（包含所有子模块）
-      # ------------------------------------------------------------
       - name: 检出代码（含子模块）
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive'   # 递归拉取所有子模块
+          submodules: 'recursive'
 
-      # ------------------------------------------------------------
-      # 步骤 2: 安装基础构建工具
-      # ------------------------------------------------------------
       - name: 安装基础工具
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build cmake file
 
-      # ------------------------------------------------------------
-      # 步骤 3: 获取 protoc（主机 x86_64 版本）
-      # ------------------------------------------------------------
       - name: 获取 protoc
         run: |
           PROTOC_VERSION="21.12"
-          PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
-          echo "下载 protoc: ${PROTOC_URL}"
-          wget -q "${PROTOC_URL}"
+          wget -q "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
           sudo unzip -j "protoc-${PROTOC_VERSION}-linux-x86_64.zip" bin/protoc -d /usr/local/bin/
           sudo chmod +x /usr/local/bin/protoc
-          # 设置环境变量供后续步骤使用
           echo "PROTOC_PATH=/usr/local/bin/protoc" >> $GITHUB_ENV
-          # 验证安装
-          /usr/local/bin/protoc --version
 
-      # ------------------------------------------------------------
-      # 步骤 4: 下载并解压 Linaro aarch64-linux-gnu 工具链
-      # ------------------------------------------------------------
       - name: 下载 Linaro 交叉编译工具链
         run: |
-          # 使用 Linaro GCC 7.5.0 (2019.12)，该版本包含 glibc 2.31，兼容性良好
           TOOLCHAIN_URL="https://releases.linaro.org/components/toolchain/binaries/7.5-2019.12/aarch64-linux-gnu/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu.tar.xz"
-          echo "下载工具链: ${TOOLCHAIN_URL}"
           wget -q "${TOOLCHAIN_URL}"
-          echo "解压工具链..."
-          tar -xf gcc-linaro-*.tar.xz
-          # 重命名目录为固定名称
-          mv gcc-linaro-* toolchain
-          # 设置 TOOLCHAIN_DIR 环境变量
-          echo "TOOLCHAIN_DIR=$PWD/toolchain" >> $GITHUB_ENV
-          # 显示工具链版本
-          $PWD/toolchain/bin/aarch64-linux-gnu-gcc --version
+          tar -xf gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu.tar.xz
+          echo "TOOLCHAIN_DIR=$PWD/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu" >> $GITHUB_ENV
 
-      # ------------------------------------------------------------
-      # 步骤 5: 应用补丁和准备工作
-      # ------------------------------------------------------------
       - name: 应用补丁
         run: |
           chmod +x ./aarch64-linux-patch.sh
           ./aarch64-linux-patch.sh
 
-      # ------------------------------------------------------------
-      # 步骤 6: 构建 aapt2
-      # ------------------------------------------------------------
       - name: 构建 aapt2
         run: |
           chmod +x ./aarch64-linux-build.sh
           ./aarch64-linux-build.sh
 
-      # ------------------------------------------------------------
-      # 步骤 7: 验证生成的可执行文件
-      # ------------------------------------------------------------
-      - name: 验证生成的可执行文件
-        run: |
-          OUTPUT_BIN="build-linux-aarch64/bin/aapt2"
-          if [[ -f "$OUTPUT_BIN" ]]; then
-            echo "可执行文件信息："
-            file "$OUTPUT_BIN"
-            # 可选：使用 QEMU 用户模式测试运行 version 命令
-            echo "尝试使用 QEMU 运行 aapt2 version..."
-            sudo apt-get install -y qemu-user-static
-            qemu-aarch64-static "$OUTPUT_BIN" version || echo "警告: QEMU 测试未通过，但文件已生成（可能由于 QEMU 环境限制）。"
-          else
-            echo "错误: 未找到可执行文件 $OUTPUT_BIN"
-            exit 1
-          fi
-
-      # ------------------------------------------------------------
-      # 步骤 8: 上传构建产物
-      # ------------------------------------------------------------
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
@@ -128,73 +62,3 @@ jobs:
           path: build-linux-aarch64/bin/aapt2
           if-no-files-found: error
           retention-days: 30
-
-  # ==========================================================================
-  # 发布作业：将构建产物发布为 GitHub Release
-  # ==========================================================================
-  release:
-    name: 发布 Release
-    needs: build-linux-aarch64
-    runs-on: ubuntu-22.04
-    # 仅在推送事件或手动触发时发布，避免在 PR 等场景误发布
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    permissions:
-      contents: write          # 允许创建 Release
-      id-token: write          # 用于生成来源证明（可选）
-      attestations: write
-    steps:
-      # ------------------------------------------------------------
-      # 步骤 1: 检出代码（用于获取可能的发布配置）
-      # ------------------------------------------------------------
-      - name: 检出代码
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      # ------------------------------------------------------------
-      # 步骤 2: 下载构建产物
-      # ------------------------------------------------------------
-      - name: 下载构建产物
-        uses: actions/download-artifact@v4
-        with:
-          name: aapt2-linux-aarch64
-          path: ./release-artifacts/
-
-      # ------------------------------------------------------------
-      # 步骤 3: 生成来源证明（可选，增强供应链安全）
-      # ------------------------------------------------------------
-      - name: 生成来源证明
-        if: ${{ success() }}
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: ./release-artifacts/aapt2
-
-      # ------------------------------------------------------------
-      # 步骤 4: 计算 SHA256 校验和
-      # ------------------------------------------------------------
-      - name: 计算 SHA256 校验和
-        run: |
-          cd ./release-artifacts
-          sha256sum aapt2 > aapt2.sha256
-
-      # ------------------------------------------------------------
-      # 步骤 5: 创建 GitHub Release
-      # ------------------------------------------------------------
-      - name: 创建或更新 GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # 如果没有配置 semantic-release，则使用 GitHub CLI 手动创建 Release
-          if [[ ! -f ".releaserc" ]] && [[ ! -f "package.json" ]]; then
-            echo "未检测到 semantic-release 配置，使用 GitHub CLI 创建 Release。"
-            TAG_NAME="aapt2-linux-aarch64-$(date +%Y%m%d%H%M%S)"
-            RELEASE_NAME="aapt2 for Linux aarch64 - $(date +%Y-%m-%d)"
-            gh release create "$TAG_NAME" \
-              --title "$RELEASE_NAME" \
-              --notes "自动构建的 aarch64 Linux 版 aapt2 静态链接可执行文件。\n\n- 构建时间: $(date -u +'%Y-%m-%d %H:%M:%S UTC')\n- 提交 SHA: ${GITHUB_SHA}\n- 工具链: Linaro GCC 7.5.0 (glibc 2.31)" \
-              ./release-artifacts/*
-          else
-            echo "检测到 semantic-release 配置，使用 semantic-release 发布。"
-            npm install -g semantic-release @semantic-release/git @semantic-release/github @semantic-release/exec
-            npx semantic-release
-          fi
