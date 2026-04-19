@@ -46,14 +46,11 @@ else
     echo "警告：$TARGET_FILE 不存在，跳过修复。"
 fi
 
-# 修复 native_handle.cpp：添加 fdsan.h 包含并移除类型转换
+# 修复 native_handle.cpp 中的 fdsan 类型转换
 NATIVE_HANDLE_FILE="submodules/core/libcutils/native_handle.cpp"
 if [[ -f "$NATIVE_HANDLE_FILE" ]]; then
-    echo ">>> 修复 $NATIVE_HANDLE_FILE 的 fdsan 头文件包含"
-    # 在 #include <cutils/native_handle.h> 之后插入 #include <android/fdsan.h>
-    sed -i '/^#include <cutils\/native_handle.h>/a #include <android/fdsan.h>' "$NATIVE_HANDLE_FILE"
-    # 将原来带类型转换的调用改回直接使用枚举
-    sed -i 's/android_fdsan_create_owner_tag((enum android_fdsan_owner_type)ANDROID_FDSAN_OWNER_TYPE_NATIVE_HANDLE,/android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_NATIVE_HANDLE,/' "$NATIVE_HANDLE_FILE"
+    echo ">>> 修复 $NATIVE_HANDLE_FILE 中的 fdsan 类型转换"
+    sed -i 's/android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_NATIVE_HANDLE,/android_fdsan_create_owner_tag((enum android_fdsan_owner_type)ANDROID_FDSAN_OWNER_TYPE_NATIVE_HANDLE,/' "$NATIVE_HANDLE_FILE"
 fi
 
 # 创建符号链接
