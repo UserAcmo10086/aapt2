@@ -1,4 +1,3 @@
-
 #!/bin/bash
 set -e
 
@@ -38,11 +37,11 @@ if [[ -f "patches/32bsystem_on_armv8.patch" ]]; then
 fi
 
 # 修复 posix_strerror_r.cpp 中的 strerror_r 返回类型问题
-# 在文件开头插入 #undef _GNU_SOURCE，强制使用 XSI 兼容版本（返回 int）
 TARGET_FILE="submodules/libbase/posix_strerror_r.cpp"
 if [[ -f "$TARGET_FILE" ]]; then
     echo ">>> 修复 $TARGET_FILE 的 strerror_r 返回类型"
-    sed -i '1i #undef _GNU_SOURCE' "$TARGET_FILE"
+    # 在 #include <string.h> 之前插入 #undef _GNU_SOURCE
+    sed -i '/#include <string.h>/i #undef _GNU_SOURCE' "$TARGET_FILE"
 else
     echo "警告：$TARGET_FILE 不存在，跳过修复。"
 fi
