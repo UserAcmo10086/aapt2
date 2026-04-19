@@ -56,9 +56,9 @@ export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
-# 关键修复：显式定义 GNU 预处理器宏，解决头文件条件编译错误
+# 正确的函数式宏定义，使 GNU 头文件预处理通过
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++17 -D_GNU_SOURCE"
-CXXFLAGS+=" -D__GLIBC_PREREQ=1 -D__GNUC_PREREQ=1"
+CXXFLAGS+=" -D__GLIBC_PREREQ\(x,y\)=1 -D__GNUC_PREREQ\(x,y\)=1 -D__GLIBC_USE\(x\)=1"
 CXXFLAGS+=" -include limits -include cstring"
 CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
 
