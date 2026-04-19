@@ -10,7 +10,6 @@ set(CMAKE_CXX_COMPILER_FORCED TRUE CACHE INTERNAL "")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-# 全局编译标志（实际通过命令行传入，此处不重复）
 # 静态链接
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
@@ -47,9 +46,5 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-
-# 对 posix_strerror_r.cpp 单独设置编译定义，使其使用 XSI 版本的 strerror_r
-set_source_files_properties(
-    ${PROJECT_SOURCE_DIR}/submodules/libbase/posix_strerror_r.cpp
-    PROPERTIES COMPILE_DEFINITIONS "_XOPEN_SOURCE=600"
-)
+# 对 libbase 目标添加编译定义，使其中的 posix_strerror_r.cpp 使用 XSI 兼容的 strerror_r
+target_compile_definitions(libbase PRIVATE _XOPEN_SOURCE=600)
