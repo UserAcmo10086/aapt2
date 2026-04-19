@@ -54,6 +54,7 @@ if(TARGET libcutils)
 
     foreach(src_file IN LISTS NDK_SOURCES)
         if(EXISTS "${src_file}")
+            message(STATUS "ndk的sysroot目录： = ${NDK_SYSROOT}")
             set_source_files_properties(${src_file}
                 PROPERTIES
                 COMPILE_OPTIONS "-I${NDK_SYSROOT}/usr/include"
