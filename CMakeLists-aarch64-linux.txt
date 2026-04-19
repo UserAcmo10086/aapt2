@@ -41,12 +41,9 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# ========== 针对 libcutils 的精确源文件级修复 ==========
 if(TARGET libcutils)
-    # 1. 首先为整个目标设置公共宏（不会污染头文件）
     target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32)
 
-    # 2. 需要 NDK 头文件的源文件列表（将单独添加包含路径和 Bionic 宏）
     set(NDK_REQUIRED_SOURCES
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
@@ -55,17 +52,13 @@ if(TARGET libcutils)
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
     )
 
-    # 3. 为 NDK 需要的源文件单独设置包含路径和宏
     foreach(src_file IN LISTS NDK_REQUIRED_SOURCES)
         if(EXISTS "${src_file}")
             set_source_files_properties(${src_file}
                 PROPERTIES
-                INCLUDE_DIRECTORIES "${NDK_SYSROOT}/usr/include"
+                COMPILE_OPTIONS "-isystem;${NDK_SYSROOT}/usr/include"
                 COMPILE_DEFINITIONS "__BIONIC__=1"
             )
         endif()
     endforeach()
-
-    # 4. 不需要 NDK 头文件的源文件列表（保持纯净 GNU 环境，不添加任何特殊属性）
-    #    （canned_fs_config.cpp、fs_config.cpp、properties.cpp 等均在此列）
 endif()
