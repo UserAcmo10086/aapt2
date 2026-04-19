@@ -23,7 +23,7 @@ LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 [[ ! -d "${LINUX_SYSROOT}" ]] && echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在" && exit 1
 
-# 定位 GCC 版本目录（仅用于 crtbeginT.o 和 libgcc.a）
+# 定位 crtbeginT.o 目录
 if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
     echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-aarch64-linux-gnu"
     exit 1
@@ -32,7 +32,7 @@ CRTBEGIN_T_DIR=$(aarch64-linux-gnu-gcc -print-file-name=crtbeginT.o | xargs dirn
 [[ ! -d "${CRTBEGIN_T_DIR}" ]] && echo "错误：无法确定 crtbeginT.o 目录" && exit 1
 echo ">>> crtbeginT.o 目录: ${CRTBEGIN_T_DIR}"
 
-# 精确探测 C++ 头文件目录
+# C++ 头文件目录
 CXX_BASE="${LINUX_SYSROOT}/include/c++"
 [[ ! -d "${CXX_BASE}" ]] && echo "错误：${CXX_BASE} 不存在，请安装 libstdc++-arm64-cross" && exit 1
 CXX_VER=$(find "${CXX_BASE}" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
@@ -43,7 +43,7 @@ CXX_ARCH_DIR="${CXX_VER}/aarch64-linux-gnu"
 echo ">>> C++ 头文件顶层目录: ${CXX_TOP_DIR}"
 echo ">>> C++ 头文件架构目录: ${CXX_ARCH_DIR}"
 
-# ZLIB 配置
+# ZLIB
 ZLIB_LIBRARY="${LINUX_SYSROOT}/lib/libz.a"
 if [[ ! -f "${ZLIB_LIBRARY}" ]]; then
     echo "错误：未找到目标平台的 libz.a，请在工作流中安装 zlib1g-dev:arm64"
@@ -62,7 +62,8 @@ export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
-CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
+# 降级 C++ 标准至 C++17 以规避 libstdc++ consteval 问题
+CXXFLAGS="${COMMON_FLAGS} -std=gnu++17"
 CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
 
 LINKER_FLAGS="-fuse-ld=lld -static -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib -lstdc++"
