@@ -41,13 +41,20 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# 局部处理 libcutils 的 Android 依赖
+# 专门处理 libcutils 的 Android 依赖，避免全局污染
 if(TARGET libcutils)
     if(DEFINED NDK_SYSROOT)
-        target_include_directories(libcutils SYSTEM PRIVATE ${NDK_SYSROOT}/usr/include)
+        target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
     endif()
     target_compile_definitions(libcutils PRIVATE
         PROP_NAME_MAX=32
+        __BIONIC__=1
         _GNU_SOURCE
+    )
+    # 对特定源文件添加空宏定义以绕过 GNU 扩展语法错误
+    set_source_files_properties(
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/canned_fs_config.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs_config.cpp
+        PROPERTIES COMPILE_DEFINITIONS "__THROW=;__wur="
     )
 endif()
