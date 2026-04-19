@@ -41,49 +41,31 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# ========== 针对 libcutils 的精确修复 ==========
+# ========== 针对 libcutils 的精确源文件级修复 ==========
 if(TARGET libcutils)
-    # 1. 添加 NDK 头文件路径，并定义 Bionic 宏，激活 Android 相关代码
-    if(DEFINED NDK_SYSROOT)
-        target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
-    endif()
-    target_compile_definitions(libcutils PRIVATE
-        PROP_NAME_MAX=32
-        __BIONIC__=1
-        _GNU_SOURCE
+    # 1. 首先为整个目标设置公共宏（不会污染头文件）
+    target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32)
+
+    # 2. 需要 NDK 头文件的源文件列表（将单独添加包含路径和 Bionic 宏）
+    set(NDK_REQUIRED_SOURCES
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-dev.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
     )
 
-    # 2. 需要纯净 GNU 环境的源文件列表（移除 NDK 头文件路径）
-    set(GNU_ONLY_SOURCES
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/canned_fs_config.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs_config.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/properties.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/android_get_control_file.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/config_utils.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/hashmap.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/load_file.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/multiuser.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/partition_utils.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/qtaguid.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/record_stream.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/socket_inaddr_any_server_unix.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/threads.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/uevent.cpp
-    )
-
-    foreach(src_file IN LISTS GNU_ONLY_SOURCES)
+    # 3. 为 NDK 需要的源文件单独设置包含路径和宏
+    foreach(src_file IN LISTS NDK_REQUIRED_SOURCES)
         if(EXISTS "${src_file}")
             set_source_files_properties(${src_file}
-                PROPERTIES INCLUDE_DIRECTORIES ""
+                PROPERTIES
+                INCLUDE_DIRECTORIES "${NDK_SYSROOT}/usr/include"
+                COMPILE_DEFINITIONS "__BIONIC__=1"
             )
         endif()
     endforeach()
 
-    # 3. 为需要额外 Android 宏的文件补充定义（native_handle.cpp 已在 __BIONIC__ 下自动获得）
-    set_source_files_properties(
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-dev.cpp
-        PROPERTIES COMPILE_DEFINITIONS "__ANDROID__"
-    )
+    # 4. 不需要 NDK 头文件的源文件列表（保持纯净 GNU 环境，不添加任何特殊属性）
+    #    （canned_fs_config.cpp、fs_config.cpp、properties.cpp 等均在此列）
 endif()
