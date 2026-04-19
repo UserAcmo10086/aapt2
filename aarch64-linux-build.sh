@@ -54,8 +54,8 @@ export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
-# 使用 XSI 兼容版本的 strerror_r，并预包含必要头文件
-CXXFLAGS="${COMMON_FLAGS} -std=gnu++17 -D_XOPEN_SOURCE=600"
+# 强制使用 XSI 版本的 strerror_r，并预包含必要头文件
+CXXFLAGS="${COMMON_FLAGS} -std=gnu++17 -D_POSIX_C_SOURCE=200809L -U_GNU_SOURCE"
 CXXFLAGS+=" -include limits -include cstring"
 CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
 
