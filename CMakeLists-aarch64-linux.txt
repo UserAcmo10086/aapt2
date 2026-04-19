@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools)
 
+# 强制跳过编译器工作性检查
 set(CMAKE_C_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_C_COMPILER_FORCED TRUE CACHE INTERNAL "")
@@ -41,36 +42,14 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# 精细化处理 libcutils：仅对需要的源文件添加 NDK 头文件路径和宏定义
+# 为 libcutils 目标统一添加 NDK 头文件路径和必要的 Android 宏定义
 if(TARGET libcutils)
-    # 定义需要 NDK 支持的源文件列表（基于之前的构建日志）
-    set(NDK_REQUIRED_SOURCES
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/canned_fs_config.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs_config.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/properties.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/android_get_control_file.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/config_utils.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/record_stream.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/socket_inaddr_any_server_unix.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
+    if(DEFINED NDK_SYSROOT)
+        target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
+    endif()
+    target_compile_definitions(libcutils PRIVATE
+        PROP_NAME_MAX=32
+        __BIONIC__=1
+        _GNU_SOURCE
     )
-
-    # 仅为上述文件设置 NDK 包含路径和编译定义
-    foreach(src_file IN LISTS NDK_REQUIRED_SOURCES)
-        if(EXISTS "${src_file}")
-            set_source_files_properties(${src_file}
-                PROPERTIES
-                INCLUDE_DIRECTORIES "${NDK_SYSROOT}/usr/include"
-                COMPILE_DEFINITIONS "PROP_NAME_MAX=32;__BIONIC__=1;_GNU_SOURCE;__THROW=;__wur=;__GLIBC_PREREQ(x,y)=1;__GNUC_PREREQ(x,y)=1;__GLIBC_USE(x)=1"
-            )
-        endif()
-    endforeach()
-
-    # 为整个目标设置一般的编译定义（仅对未特别指定的文件生效）
-    target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32)
 endif()
