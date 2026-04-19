@@ -46,37 +46,20 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# ========== 针对 libcutils 的源文件级精确修复 ==========
+# ========== 针对 libcutils 的最终修复 ==========
 if(TARGET libcutils)
-    # 1. 定义公共宏
-    target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32)
+    # 统一添加 NDK 头文件路径，确保 native_handle.cpp 等能正确包含 Android 头文件
+    if(DEFINED NDK_SYSROOT)
+        target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
+    endif()
     
-    # 2. 需要 NDK 头文件的源文件列表（仅为它们单独添加 NDK 包含路径）
-    set(NDK_SOURCES
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
+    # 定义公共宏：__BIONIC__ 启用 NDK 头文件，_GNU_SOURCE 确保 GNU 扩展
+    target_compile_definitions(libcutils PRIVATE
+        PROP_NAME_MAX=32
+        __BIONIC__=1
+        _GNU_SOURCE
     )
     
-    # 3. 为 NDK 源文件单独添加 NDK 头文件路径和必要宏定义
-    foreach(src_file IN LISTS NDK_SOURCES)
-        if(EXISTS "${src_file}")
-            set_source_files_properties(${src_file}
-                PROPERTIES
-                INCLUDE_DIRECTORIES "${NDK_SYSROOT}/usr/include"
-                COMPILE_DEFINITIONS "__BIONIC__=1"
-            )
-        endif()
-    endforeach()
-    
-    # 4. 对 native_handle.cpp 额外定义缺失的枚举值
-    set_source_files_properties(
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
-        PROPERTIES COMPILE_DEFINITIONS "ANDROID_FDSAN_OWNER_TYPE_NATIVE_HANDLE=10;__BIONIC__=1"
-    )
-    
-    # 5. 注意：不设置任何全局的 target_include_directories 包含 NDK 路径，
-    #    以确保 GNU 源文件（如 canned_fs_config.cpp）完全不受 NDK 头文件污染。
+    # 不再为 native_handle.cpp 单独定义 ANDROID_FDSAN_OWNER_TYPE_NATIVE_HANDLE
+    # 因为 NDK 头文件 <android/fdsan.h> 已经提供了正确的枚举定义
 endif()
