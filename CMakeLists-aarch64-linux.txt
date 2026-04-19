@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools)
 
-# 强制跳过编译器工作性检查（交叉编译必须）
 set(CMAKE_C_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_C_COMPILER_FORCED TRUE CACHE INTERNAL "")
@@ -42,13 +41,13 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# 局部解决 libcutils 需要的 Android 特有头文件和宏定义
+# 局部处理 libcutils 的 Android 依赖
 if(TARGET libcutils)
     if(DEFINED NDK_SYSROOT)
         target_include_directories(libcutils SYSTEM PRIVATE ${NDK_SYSROOT}/usr/include)
     endif()
     target_compile_definitions(libcutils PRIVATE
         PROP_NAME_MAX=32
-        ANDROID_FDSAN_OWNER_TYPE_NATIVE_HANDLE=10  # 根据 NDK fdsan.h 枚举值
+        _GNU_SOURCE
     )
 endif()
