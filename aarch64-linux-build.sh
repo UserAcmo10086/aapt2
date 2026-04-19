@@ -23,7 +23,7 @@ LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 [[ ! -d "${LINUX_SYSROOT}" ]] && echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在" && exit 1
 
-# 定位 crtbeginT.o 目录
+# 定位 crtbeginT.o 目录（使用 GCC 12）
 if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
     echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-12-aarch64-linux-gnu"
     exit 1
@@ -54,8 +54,8 @@ export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
-# 强制使用 XSI 版本的 strerror_r，并预包含必要头文件
-CXXFLAGS="${COMMON_FLAGS} -std=gnu++17 -D_POSIX_C_SOURCE=200809L -U_GNU_SOURCE"
+# 恢复 GNU 扩展，并预包含必要头文件
+CXXFLAGS="${COMMON_FLAGS} -std=gnu++17 -D_GNU_SOURCE"
 CXXFLAGS+=" -include limits -include cstring"
 CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
 
