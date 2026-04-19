@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools)
 
-# 强制跳过编译器工作性检查（交叉编译必须）
+# 强制跳过编译器工作性检查
 set(CMAKE_C_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_C_COMPILER_FORCED TRUE CACHE INTERNAL "")
@@ -9,11 +9,8 @@ set(CMAKE_CXX_COMPILER_FORCED TRUE CACHE INTERNAL "")
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
-
-# 静态链接
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
-# pthread 强制设置
 set(THREADS_PREFER_PTHREAD_FLAG ON CACHE BOOL "" FORCE)
 set(CMAKE_USE_PTHREADS_INIT TRUE CACHE BOOL "" FORCE)
 set(Threads_FOUND TRUE CACHE BOOL "" FORCE)
@@ -30,7 +27,6 @@ set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "" FORCE)
 
-# 添加库搜索路径（由命令行传入的 EXTRA_LIB_DIRS）
 if(DEFINED EXTRA_LIB_DIRS)
     link_directories(${EXTRA_LIB_DIRS})
 endif()
@@ -46,4 +42,10 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# 不再需要针对 libbase 的 target_compile_definitions，补丁已解决问题
+# 局部解决 libcutils 需要的 Android 特有头文件
+if(TARGET libcutils)
+    if(DEFINED NDK_SYSROOT)
+        target_include_directories(libcutils PRIVATE ${NDK_SYSROOT}/usr/include)
+    endif()
+    target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32)
+endif()
