@@ -41,24 +41,44 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# ========== 针对 libcutils 的局部修复 ==========
+# ========== 针对 libcutils 的精确修复 ==========
 if(TARGET libcutils)
-    # 1. 添加 NDK 头文件路径（用于 ashmem.h 等）
+    # 1. 添加 NDK 头文件路径（用于 Android 特有头文件）
     if(DEFINED NDK_SYSROOT)
         target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
     endif()
     
-    # 2. 定义必要的 Android 宏
+    # 2. 定义必要的宏（对所有 libcutils 源文件有效）
     target_compile_definitions(libcutils PRIVATE
         PROP_NAME_MAX=32
         __BIONIC__=1
         _GNU_SOURCE
+        # 函数式宏定义（CMake 自动转义）
+        __GLIBC_PREREQ\(x,y\)=1
+        __GNUC_PREREQ\(x,y\)=1
+        __GLIBC_USE\(x\)=1
+        # 阻止包含 xlocale.h，避免 __locale_t 冲突
+        HAVE_XLOCALE_H=0
     )
     
-    # 3. 为该目标单独添加编译器标志以解决 __GLIBC_PREREQ 等宏未定义问题
-    target_compile_options(libcutils PRIVATE
-        -D__GLIBC_PREREQ\(x,y\)=1
-        -D__GNUC_PREREQ\(x,y\)=1
-        -D__GLIBC_USE\(x\)=1
+    # 3. 对需要 fdsan 枚举的源文件添加额外定义
+    set_source_files_properties(
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
+        PROPERTIES COMPILE_DEFINITIONS "ANDROID_FDSAN_OWNER_TYPE_NATIVE_HANDLE=10"
     )
+    
+    # 4. 对不需要 NDK 头文件的源文件移除 NDK 包含路径，避免冲突
+    set(NO_NDK_SOURCES
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/canned_fs_config.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs_config.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/properties.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/android_get_control_file.cpp
+    )
+    foreach(src_file IN LISTS NO_NDK_SOURCES)
+        if(EXISTS "${src_file}")
+            set_source_files_properties(${src_file}
+                PROPERTIES INCLUDE_DIRECTORIES ""
+            )
+        endif()
+    endforeach()
 endif()
