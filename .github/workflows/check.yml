@@ -16,8 +16,12 @@ jobs:
         run: |
           set -e
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
-          
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu \
+            libc6-dev-arm64-cross
+            
           TEMP_DIR=$(mktemp -d)
           cd "$TEMP_DIR"
           wget http://ports.ubuntu.com/pool/main/z/zlib/zlib1g_1.3.dfsg+really1.3.1-1ubuntu2_arm64.deb
