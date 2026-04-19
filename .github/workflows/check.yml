@@ -60,3 +60,21 @@ jobs:
              find /usr -path "/usr/local" -prune -o -name "libz.a" -print 2>/dev/null
              find /usr -path "/usr/local" -prune -o -name "zlib.h" -print 2>/dev/null
              find /usr -path "/usr/local" -prune -o -name "c++config.h" -print 2>/dev/null
+             find ${{ steps.setup-ndk.outputs.ndk-path }} -name "ashmem.h" 2>/dev/null
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+             
