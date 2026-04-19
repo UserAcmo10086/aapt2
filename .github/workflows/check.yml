@@ -12,6 +12,16 @@ jobs:
     name: 构建 Linux aarch64
     runs-on: ubuntu-latest
     steps:
+      - name: 安装 NDK r25c
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+            ndk-version: r25c
+            add-to-path: false
+
+      - name: 打印 NDK 路径
+        run: echo "NDK 安装目录为 ${{ steps.setup-ndk.outputs.ndk-path }}"
+
       - name: 安装 AArch64 交叉编译库
         run: |
           set -e
