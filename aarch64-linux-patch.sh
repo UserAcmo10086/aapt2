@@ -40,8 +40,8 @@ fi
 TARGET_FILE="submodules/libbase/posix_strerror_r.cpp"
 if [[ -f "$TARGET_FILE" ]]; then
     echo ">>> 修复 $TARGET_FILE 的 strerror_r 返回类型"
-    # 在 #include <string.h> 之前插入宏定义，强制使用 XSI 兼容的 strerror_r (返回 int)
-    sed -i '/#include <string.h>/i #undef _GNU_SOURCE\n#define _XOPEN_SOURCE 600' "$TARGET_FILE"
+    # 直接替换为 __xpg_strerror_r，它是 XSI 兼容版本，返回 int
+    sed -i 's/strerror_r(errnum, buf, buflen)/__xpg_strerror_r(errnum, buf, buflen)/' "$TARGET_FILE"
 else
     echo "警告：$TARGET_FILE 不存在，跳过修复。"
 fi
