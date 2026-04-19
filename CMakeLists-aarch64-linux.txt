@@ -44,22 +44,23 @@ add_subdirectory(cmake)
 if(TARGET libcutils)
     target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32)
 
+    # 精确为需要 NDK 头文件的源文件添加包含路径和 __BIONIC__ 宏
     set(NDK_SOURCES
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
+        ashmem-dev.cpp
+        native_handle.cpp
+        trace-dev.cpp
+        trace-host.cpp
+        strlcpy.c
     )
-
-    foreach(src_file IN LISTS NDK_SOURCES)
-        if(EXISTS "${src_file}")
-            message(STATUS "ndk的sysroot目录： = ${NDK_SYSROOT}")
-            set_source_files_properties(${src_file}
-                PROPERTIES
-                COMPILE_OPTIONS "-I${NDK_SYSROOT}/usr/include"
-                COMPILE_DEFINITIONS "__BIONIC__=1"
-            )
-        endif()
+    foreach(src IN LISTS NDK_SOURCES)
+        target_compile_options(libcutils PRIVATE
+            "SHELL:$<$<COMPILE_LANGUAGE:CXX>:-I${NDK_SYSROOT}/usr/include>"
+            "SHELL:$<$<COMPILE_LANGUAGE:C>:-I${NDK_SYSROOT}/usr/include>"
+        )
+        set_source_files_properties(
+            ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/${src}
+            PROPERTIES COMPILE_DEFINITIONS "__BIONIC__=1"
+            APPEND
+        )
     endforeach()
 endif()
