@@ -1,3 +1,4 @@
+
 #!/bin/bash
 set -e
 
@@ -10,7 +11,7 @@ cp "misc/IncrementalProperties.sysprop.cpp" "submodules/incremental_delivery/sys
 
 cp "misc/platform_tools_version.h" "submodules/soong/cc/libbuildversion/include"
 
-# 修正 proto 文件中的导入路径（移除 frameworks/base/tools/aapt2/ 前缀）
+# 修正 proto 文件中的导入路径
 configPattern="s#frameworks/base/tools/aapt2/Configuration.proto#Configuration.proto#g"
 resourcesPattern="s#frameworks/base/tools/aapt2/Resources.proto#Resources.proto#g"
 
@@ -20,7 +21,7 @@ sed -i "$configPattern" "submodules/base/tools/aapt2/ResourcesInternal.proto"
 sed -i "$resourcesPattern" "submodules/base/tools/aapt2/ApkInfo.proto"
 sed -i "$resourcesPattern" "submodules/base/tools/aapt2/ResourcesInternal.proto"
 
-# 可选应用上游补丁（如果补丁文件存在）
+# 应用上游补丁（如果存在）
 if [[ -f "patches/apktool_ibotpeaches.patch" ]]; then
     echo ">>> 应用 apktool_ibotpeaches.patch"
     git apply "patches/apktool_ibotpeaches.patch" || echo "警告：补丁应用失败，请手动检查。"
@@ -36,7 +37,17 @@ if [[ -f "patches/32bsystem_on_armv8.patch" ]]; then
     git apply "patches/32bsystem_on_armv8.patch" || echo "警告：补丁应用失败，请手动检查。"
 fi
 
-# 创建符号链接（与原始 patch.sh 保持一致）
+# 修复 posix_strerror_r.cpp 中的 strerror_r 返回类型问题
+# 在文件开头插入 #undef _GNU_SOURCE，强制使用 XSI 兼容版本（返回 int）
+TARGET_FILE="submodules/libbase/posix_strerror_r.cpp"
+if [[ -f "$TARGET_FILE" ]]; then
+    echo ">>> 修复 $TARGET_FILE 的 strerror_r 返回类型"
+    sed -i '1i #undef _GNU_SOURCE' "$TARGET_FILE"
+else
+    echo "警告：$TARGET_FILE 不存在，跳过修复。"
+fi
+
+# 创建符号链接
 ln -sf "../../googletest" "submodules/boringssl/src/third_party/googletest"
 
 echo ">>> 补丁应用完成。"
