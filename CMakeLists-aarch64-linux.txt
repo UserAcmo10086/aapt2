@@ -42,51 +42,22 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 add_subdirectory(cmake)
 
 if(TARGET libcutils)
-    # 全局添加 NDK 头文件路径，确保 ashmem-dev.cpp 等能访问 Android 特有头文件
-    if(DEFINED NDK_SYSROOT)
-        target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
-    endif()
     target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32)
 
-    # 为不需要 NDK 头文件的源文件显式清除包含路径（覆盖目标级路径）
-    set(GNU_ONLY_SOURCES
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/canned_fs_config.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs_config.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/properties.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/android_get_control_file.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/config_utils.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/hashmap.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/load_file.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/multiuser.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/partition_utils.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/qtaguid.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/record_stream.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/socket_inaddr_any_server_unix.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/threads.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/uevent.cpp
-    )
-
-    foreach(src_file IN LISTS GNU_ONLY_SOURCES)
-        if(EXISTS "${src_file}")
-            set_source_files_properties(${src_file}
-                PROPERTIES INCLUDE_DIRECTORIES ""
-            )
-        endif()
-    endforeach()
-
-    # 为需要 Bionic 宏的源文件定义 __BIONIC__
-    set(BIONIC_SOURCES
+    set(NDK_SOURCES
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-dev.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
     )
-    foreach(src_file IN LISTS BIONIC_SOURCES)
+
+    foreach(src_file IN LISTS NDK_SOURCES)
         if(EXISTS "${src_file}")
             set_source_files_properties(${src_file}
-                PROPERTIES COMPILE_DEFINITIONS "__BIONIC__=1"
+                PROPERTIES
+                COMPILE_OPTIONS "-I${NDK_SYSROOT}/usr/include"
+                COMPILE_DEFINITIONS "__BIONIC__=1"
             )
         endif()
     endforeach()
