@@ -25,7 +25,6 @@ LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 
 NDK_SYSROOT="${TOOLCHAIN}/sysroot"
 
-# 定位 crtbeginT.o 目录
 if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
     echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-12-aarch64-linux-gnu"
     exit 1
@@ -34,7 +33,6 @@ CRTBEGIN_T_DIR=$(aarch64-linux-gnu-gcc -print-file-name=crtbeginT.o | xargs dirn
 [[ ! -d "${CRTBEGIN_T_DIR}" ]] && echo "错误：无法确定 crtbeginT.o 目录" && exit 1
 echo ">>> crtbeginT.o 目录: ${CRTBEGIN_T_DIR}"
 
-# C++ 头文件目录
 CXX_BASE="${LINUX_SYSROOT}/include/c++"
 [[ ! -d "${CXX_BASE}" ]] && echo "错误：${CXX_BASE} 不存在" && exit 1
 CXX_VER=$(find "${CXX_BASE}" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
@@ -44,7 +42,6 @@ CXX_ARCH_DIR="${CXX_VER}/aarch64-linux-gnu"
 [[ ! -d "${CXX_ARCH_DIR}" ]] && echo "错误：${CXX_ARCH_DIR} 不存在" && exit 1
 echo ">>> C++ 头文件目录: ${CXX_TOP_DIR}"
 
-# ZLIB
 ZLIB_LIBRARY="${LINUX_SYSROOT}/lib/libz.a"
 [[ ! -f "${ZLIB_LIBRARY}" ]] && echo "错误：未找到 libz.a" && exit 1
 ZLIB_INCLUDE_DIR="${LINUX_SYSROOT}/include"
@@ -56,7 +53,6 @@ export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
-# 全局 CXXFLAGS：添加函数式宏定义，确保 GNU libc 头文件预处理通过
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++17"
 CXXFLAGS+=" -D__GLIBC_PREREQ\(x,y\)=1 -D__GNUC_PREREQ\(x,y\)=1 -D__GLIBC_USE\(x\)=1"
 CXXFLAGS+=" -include limits -include cstring"
