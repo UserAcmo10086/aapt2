@@ -56,7 +56,7 @@ export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
-# 全局 CXXFLAGS 保持干净，不添加任何 GNU 扩展宏，避免污染
+# 全局 CXXFLAGS 保持干净
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++17"
 CXXFLAGS+=" -include limits -include cstring"
 CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
