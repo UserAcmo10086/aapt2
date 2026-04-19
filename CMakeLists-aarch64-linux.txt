@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools)
 
-# 强制跳过编译器工作性检查
 set(CMAKE_C_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_C_COMPILER_FORCED TRUE CACHE INTERNAL "")
@@ -42,14 +41,24 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# 为 libcutils 目标统一添加 NDK 头文件路径和必要的 Android 宏定义
+# ========== 针对 libcutils 的局部修复 ==========
 if(TARGET libcutils)
+    # 1. 添加 NDK 头文件路径（用于 ashmem.h 等）
     if(DEFINED NDK_SYSROOT)
         target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
     endif()
+    
+    # 2. 定义必要的 Android 宏
     target_compile_definitions(libcutils PRIVATE
         PROP_NAME_MAX=32
         __BIONIC__=1
         _GNU_SOURCE
+    )
+    
+    # 3. 为该目标单独添加编译器标志以解决 __GLIBC_PREREQ 等宏未定义问题
+    target_compile_options(libcutils PRIVATE
+        -D__GLIBC_PREREQ\(x,y\)=1
+        -D__GNUC_PREREQ\(x,y\)=1
+        -D__GLIBC_USE\(x\)=1
     )
 endif()
