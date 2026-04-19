@@ -23,7 +23,7 @@ LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 [[ ! -d "${LINUX_SYSROOT}" ]] && echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在" && exit 1
 
-# 使用 aarch64-linux-gnu-gcc 定位 crtbeginT.o 目录（仅用于获取路径）
+# 定位 GCC 版本目录（仅用于 crtbeginT.o 和 libgcc.a）
 if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
     echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-aarch64-linux-gnu"
     exit 1
@@ -32,21 +32,27 @@ CRTBEGIN_T_DIR=$(aarch64-linux-gnu-gcc -print-file-name=crtbeginT.o | xargs dirn
 [[ ! -d "${CRTBEGIN_T_DIR}" ]] && echo "错误：无法确定 crtbeginT.o 目录" && exit 1
 echo ">>> crtbeginT.o 目录: ${CRTBEGIN_T_DIR}"
 
-# 动态定位 C++ 头文件目录：查找 c++config.h
-CXX_CONFIG_H=$(find "${LINUX_SYSROOT}/include/c++" -name "c++config.h" 2>/dev/null | head -1)
-if [[ -z "${CXX_CONFIG_H}" ]]; then
-    echo "错误：未找到 c++config.h，请安装 libstdc++-arm64-cross"
+# 精确探测 C++ 头文件目录：/usr/aarch64-linux-gnu/include/c++/版本号
+CXX_BASE="${LINUX_SYSROOT}/include/c++"
+if [[ ! -d "${CXX_BASE}" ]]; then
+    echo "错误：${CXX_BASE} 不存在，请安装 libstdc++-arm64-cross"
     exit 1
 fi
-# 路径示例: /usr/aarch64-linux-gnu/include/c++/13/aarch64-linux-gnu/bits/c++config.h
-CXX_BASE_DIR=$(echo "${CXX_CONFIG_H}" | sed 's|/aarch64-linux-gnu/bits/c++config.h||')
-CXX_AARCH64_DIR="${CXX_BASE_DIR}/aarch64-linux-gnu"
-if [[ ! -d "${CXX_BASE_DIR}" ]]; then
-    echo "错误：无法确定 C++ 基本头文件目录"
+# 获取版本目录（例如 13）
+CXX_VER=$(find "${CXX_BASE}" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
+if [[ -z "${CXX_VER}" ]]; then
+    echo "错误：未找到 C++ 版本目录"
     exit 1
 fi
-echo ">>> C++ 头文件基本目录: ${CXX_BASE_DIR}"
-echo ">>> C++ 头文件 aarch64 子目录: ${CXX_AARCH64_DIR}"
+# 构建完整头文件路径：版本目录和版本目录/aarch64-linux-gnu
+CXX_TOP_DIR="${CXX_VER}"
+CXX_ARCH_DIR="${CXX_VER}/aarch64-linux-gnu"
+if [[ ! -d "${CXX_ARCH_DIR}" ]]; then
+    echo "错误：${CXX_ARCH_DIR} 不存在，请确认 libstdc++-arm64-cross 安装正确"
+    exit 1
+fi
+echo ">>> C++ 头文件顶层目录: ${CXX_TOP_DIR}"
+echo ">>> C++ 头文件架构目录: ${CXX_ARCH_DIR}"
 
 # ZLIB 配置
 ZLIB_LIBRARY="${LINUX_SYSROOT}/lib/libz.a"
@@ -68,10 +74,9 @@ COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolch
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
-# 添加 C++ 头文件搜索路径
-CXXFLAGS+=" -isystem ${CXX_BASE_DIR} -isystem ${CXX_AARCH64_DIR}"
+# 添加 C++ 头文件搜索路径（精确指定）
+CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
 
-# 链接器标志：静态链接，显式链接 libstdc++
 LINKER_FLAGS="-fuse-ld=lld -static -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib -lstdc++"
 
 cmake -GNinja \
