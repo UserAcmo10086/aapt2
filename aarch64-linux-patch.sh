@@ -46,6 +46,14 @@ else
     echo "警告：$TARGET_FILE 不存在，跳过修复。"
 fi
 
+
+# 修复 native_handle.cpp 中的 android_fdsan_create_owner_tag 参数类型错误
+NATIVE_HANDLE_FILE="submodules/core/libcutils/native_handle.cpp"
+if [[ -f "$NATIVE_HANDLE_FILE" ]]; then
+    echo ">>> 修复 $NATIVE_HANDLE_FILE 中的 fdsan 类型转换"
+    sed -i 's/android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_NATIVE_HANDLE,/android_fdsan_create_owner_tag((enum android_fdsan_owner_type)ANDROID_FDSAN_OWNER_TYPE_NATIVE_HANDLE,/' "$NATIVE_HANDLE_FILE"
+fi
+
 # 创建符号链接
 ln -sf "../../googletest" "submodules/boringssl/src/third_party/googletest"
 
