@@ -44,6 +44,7 @@ add_subdirectory(cmake)
 # 专门处理 libcutils 的 Android 依赖，避免全局污染
 if(TARGET libcutils)
     if(DEFINED NDK_SYSROOT)
+        # 强制将 NDK 头文件路径放在最前面，并标记为 SYSTEM
         target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
     endif()
     target_compile_definitions(libcutils PRIVATE
@@ -51,10 +52,11 @@ if(TARGET libcutils)
         __BIONIC__=1
         _GNU_SOURCE
     )
-    # 对特定源文件添加空宏定义以绕过 GNU 扩展语法错误
+    # 对特定源文件添加空宏定义以绕过 GNU 扩展语法错误，并防止重复定义警告
     set_source_files_properties(
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/canned_fs_config.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs_config.cpp
-        PROPERTIES COMPILE_DEFINITIONS "__THROW=;__wur="
+        PROPERTIES COMPILE_DEFINITIONS
+        "__THROW=;__wur=;__GLIBC_PREREQ(x,y)=1;__GNUC_PREREQ(x,y)=1;__GLIBC_USE(x)=1"
     )
 endif()
