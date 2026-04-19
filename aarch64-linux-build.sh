@@ -1,3 +1,4 @@
+
 #!/bin/bash
 set -e
 
@@ -23,6 +24,7 @@ LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 [[ ! -d "${LINUX_SYSROOT}" ]] && echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在" && exit 1
 
+# 使用 aarch64-linux-gnu-gcc 定位 GCC 版本目录（仅用于获取路径，不用于编译）
 if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
     echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-aarch64-linux-gnu"
     exit 1
@@ -31,6 +33,14 @@ fi
 CRTBEGIN_T_DIR=$(aarch64-linux-gnu-gcc -print-file-name=crtbeginT.o | xargs dirname)
 [[ ! -d "${CRTBEGIN_T_DIR}" ]] && echo "错误：无法确定 crtbeginT.o 目录" && exit 1
 echo ">>> crtbeginT.o 目录: ${CRTBEGIN_T_DIR}"
+
+# 查找 C++ 标准库头文件目录（例如 /usr/aarch64-linux-gnu/include/c++/13）
+CXX_INCLUDE_DIR=$(find "${LINUX_SYSROOT}/include/c++" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
+if [[ -z "${CXX_INCLUDE_DIR}" ]]; then
+    echo "错误：未找到 C++ 头文件目录，请安装 libstdc++-arm64-cross"
+    exit 1
+fi
+echo ">>> C++ 头文件目录: ${CXX_INCLUDE_DIR}"
 
 ZLIB_LIBRARY="${LINUX_SYSROOT}/lib/libz.a"
 if [[ ! -f "${ZLIB_LIBRARY}" ]]; then
@@ -50,9 +60,12 @@ export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
-CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a -lstdc++"
+CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
+# 添加 C++ 标准库头文件搜索路径
+CXXFLAGS+=" -isystem ${CXX_INCLUDE_DIR} -isystem ${CXX_INCLUDE_DIR}/aarch64-linux-gnu"
 
-LINKER_FLAGS="-fuse-ld=lld -static -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib"
+# 链接器标志：静态链接，包含 libstdc++
+LINKER_FLAGS="-fuse-ld=lld -static -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib -lstdc++"
 
 cmake -GNinja \
     -B "${BUILD_DIR}" \
