@@ -56,8 +56,8 @@ export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
-# 正确预定义 GNU 扩展宏（函数式宏定义）
-CXXFLAGS="${COMMON_FLAGS} -std=gnu++17 -D_GNU_SOURCE"
+# 添加 _XOPEN_SOURCE=700 减少 GNU 扩展依赖，并保留函数式宏
+CXXFLAGS="${COMMON_FLAGS} -std=gnu++17 -D_GNU_SOURCE -D_XOPEN_SOURCE=700"
 CXXFLAGS+=" -D__GLIBC_PREREQ\(x,y\)=1 -D__GNUC_PREREQ\(x,y\)=1 -D__GLIBC_USE\(x\)=1"
 CXXFLAGS+=" -include limits -include cstring"
 CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
