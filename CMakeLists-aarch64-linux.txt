@@ -42,23 +42,39 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 add_subdirectory(cmake)
 
 if(TARGET libcutils)
-    target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32)
-
-    # 为 NDK 源文件单独设置包含路径和 Bionic 宏
-    set(NDK_SOURCES
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
+    # 为目标添加 NDK 头文件路径（默认所有源文件可见）
+    if(DEFINED NDK_SYSROOT)
+        target_include_directories(libcutils SYSTEM PRIVATE ${NDK_SYSROOT}/usr/include)
+    endif()
+    target_compile_definitions(libcutils PRIVATE
+        PROP_NAME_MAX=32
+        __BIONIC__=1
+        _GNU_SOURCE
     )
 
-    foreach(src IN LISTS NDK_SOURCES)
-        if(EXISTS "${src}")
-            set_source_files_properties(${src} PROPERTIES
-                INCLUDE_DIRECTORIES "${NDK_SYSROOT}/usr/include"
-                COMPILE_DEFINITIONS "__BIONIC__=1"
-            )
+    # 需要纯净 GNU 环境的源文件：移除 NDK 头文件路径并禁用 __BIONIC__
+    set(GNU_ONLY_SOURCES
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/canned_fs_config.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs_config.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/properties.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/android_get_control_file.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/config_utils.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/hashmap.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/load_file.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/multiuser.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/partition_utils.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/qtaguid.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/record_stream.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/socket_inaddr_any_server_unix.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/threads.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/uevent.cpp
+    )
+
+    foreach(src_file IN LISTS GNU_ONLY_SOURCES)
+        if(EXISTS "${src_file}")
+            set_property(SOURCE ${src_file} PROPERTY INCLUDE_DIRECTORIES "")
+            set_source_files_properties(${src_file} PROPERTIES COMPILE_DEFINITIONS "__BIONIC__=0")
         endif()
     endforeach()
 endif()
