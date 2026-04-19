@@ -46,5 +46,4 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# 对 libbase 目标添加编译定义，使其中的 posix_strerror_r.cpp 使用 XSI 兼容的 strerror_r
-target_compile_definitions(libbase PRIVATE _XOPEN_SOURCE=600)
+# 不再需要针对 libbase 的 target_compile_definitions，补丁已解决问题
