@@ -53,12 +53,17 @@ echo ">>> ZLIB 库: ${ZLIB_LIBRARY}"
 
 export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr/lib:${LIBRARY_PATH}"
 
-COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
+# 关键修正：添加 --gnuc-version=12 使 Clang 模拟 GCC 12，预定义 __GLIBC_PREREQ 和 __GNUC_PREREQ
+COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr --gnuc-version=12"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++17 -D_GNU_SOURCE"
 CXXFLAGS+=" -include limits -include cstring"
 CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
+
+# 为 libcutils 所需 Android 头文件单独添加路径（避免全局污染，但此时全局污染已通过 CMakeLists 局部处理，此脚本未全局包含 NDK 头文件）
+# CMakeLists 中已通过 target_include_directories(libcutils PRIVATE ${NDK_SYSROOT}/usr/include) 处理
+# 同时需要定义 PROP_NAME_MAX，此处通过全局 CXXFLAGS 传递或 CMake 传递均可，我们采用 CMake 传递
 
 LINKER_FLAGS="-fuse-ld=lld -static -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib -lstdc++"
 
