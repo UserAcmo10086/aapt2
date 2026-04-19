@@ -42,12 +42,23 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 add_subdirectory(cmake)
 
 if(TARGET libcutils)
-    if(DEFINED NDK_SYSROOT)
-        target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
-    endif()
-    target_compile_definitions(libcutils PRIVATE
-        PROP_NAME_MAX=32
-        __BIONIC__=1
-        _GNU_SOURCE
+    target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32)
+
+    set(NDK_REQUIRED_SOURCES
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-dev.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
     )
+
+    foreach(src_file IN LISTS NDK_REQUIRED_SOURCES)
+        if(EXISTS "${src_file}")
+            set_source_files_properties(${src_file}
+                PROPERTIES
+                COMPILE_FLAGS "-isystem ${NDK_SYSROOT}/usr/include"
+                COMPILE_DEFINITIONS "__BIONIC__=1"
+            )
+        endif()
+    endforeach()
 endif()
