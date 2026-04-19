@@ -32,14 +32,14 @@ CRTBEGIN_T_DIR=$(aarch64-linux-gnu-gcc -print-file-name=crtbeginT.o | xargs dirn
 [[ ! -d "${CRTBEGIN_T_DIR}" ]] && echo "错误：无法确定 crtbeginT.o 目录" && exit 1
 echo ">>> crtbeginT.o 目录: ${CRTBEGIN_T_DIR}"
 
-# 动态探测 C++ 头文件目录（兼容 GCC 12 和 13）
+# 动态探测 C++ 头文件目录（GCC 12）
 CXX_BASE="${LINUX_SYSROOT}/include/c++"
 [[ ! -d "${CXX_BASE}" ]] && echo "错误：${CXX_BASE} 不存在，请安装 libstdc++-arm64-cross" && exit 1
 CXX_VER=$(find "${CXX_BASE}" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
 [[ -z "${CXX_VER}" ]] && echo "错误：未找到 C++ 版本目录" && exit 1
 CXX_TOP_DIR="${CXX_VER}"
 CXX_ARCH_DIR="${CXX_VER}/aarch64-linux-gnu"
-[[ ! -d "${CXX_ARCH_DIR}" ]] && echo "错误：${CXX_ARCH_DIR} 不存在，请确认 libstdc++-arm64-cross 安装正确" && exit 1
+[[ ! -d "${CXX_ARCH_DIR}" ]] && echo "错误：${CXX_ARCH_DIR} 不存在" && exit 1
 echo ">>> C++ 头文件顶层目录: ${CXX_TOP_DIR}"
 echo ">>> C++ 头文件架构目录: ${CXX_ARCH_DIR}"
 
@@ -61,7 +61,9 @@ export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
+# 使用 C++17 并强制预包含必要的头文件以解决缺失问题
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++17"
+CXXFLAGS+=" -include limits -include cstring"
 CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
 
 LINKER_FLAGS="-fuse-ld=lld -static -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib -lstdc++"
