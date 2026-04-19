@@ -23,6 +23,9 @@ LLVM_STRIP="${TOOLCHAIN}/bin/llvm-strip"
 LINUX_SYSROOT="${LINUX_SYSROOT:-/usr/aarch64-linux-gnu}"
 [[ ! -d "${LINUX_SYSROOT}" ]] && echo "错误：Linux sysroot ${LINUX_SYSROOT} 不存在" && exit 1
 
+# NDK 的 sysroot 路径（用于 Android 特有头文件）
+NDK_SYSROOT="${TOOLCHAIN}/sysroot"
+
 # 定位 crtbeginT.o 目录（使用 GCC 12）
 if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then
     echo "错误：未找到 aarch64-linux-gnu-gcc，请安装 gcc-12-aarch64-linux-gnu"
@@ -54,10 +57,13 @@ export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
-# 恢复 GNU 扩展，并预包含必要头文件
+# 添加 NDK 的 sysroot 包含路径以获取 Android 头文件 (如 linux/ashmem.h)
+# 同时定义缺失的 PROP_NAME_MAX 宏
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++17 -D_GNU_SOURCE"
+CXXFLAGS+=" -DPROP_NAME_MAX=32"
 CXXFLAGS+=" -include limits -include cstring"
 CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
+CXXFLAGS+=" -isystem ${NDK_SYSROOT}/usr/include"
 
 LINKER_FLAGS="-fuse-ld=lld -static -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib -lstdc++"
 
