@@ -46,3 +46,10 @@ add_subdirectory(submodules/protobuf EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
+
+
+# 对 posix_strerror_r.cpp 单独设置编译定义，使其使用 XSI 版本的 strerror_r
+set_source_files_properties(
+    ${PROJECT_SOURCE_DIR}/submodules/libbase/posix_strerror_r.cpp
+    PROPERTIES COMPILE_DEFINITIONS "_XOPEN_SOURCE=600"
+)
