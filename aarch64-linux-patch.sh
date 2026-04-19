@@ -40,8 +40,8 @@ fi
 TARGET_FILE="submodules/libbase/posix_strerror_r.cpp"
 if [[ -f "$TARGET_FILE" ]]; then
     echo ">>> 修复 $TARGET_FILE 的 strerror_r 返回类型"
-    # 单行 sed 命令：在文件最开头插入四行，强制使用 POSIX 版 strerror_r (返回 int)
-    sed -i '1i #ifdef _GNU_SOURCE\n#undef _GNU_SOURCE\n#endif\n#define _POSIX_C_SOURCE 200809L' "$TARGET_FILE"
+    # 单行 sed 命令：将 GNU 返回指针转为 int 状态码（成功返回 0，失败返回 -1）
+    sed -i 's/return strerror_r(errnum, buf, buflen);/return (int)(strerror_r(errnum, buf, buflen) ? 0 : -1);/' "$TARGET_FILE"
 else
     echo "警告：$TARGET_FILE 不存在，跳过修复。"
 fi
