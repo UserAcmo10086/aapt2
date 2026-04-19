@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools)
 
-# 强制跳过编译器工作性检查（交叉编译必须）
 set(CMAKE_C_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_C_COMPILER_FORCED TRUE CACHE INTERNAL "")
@@ -9,11 +8,8 @@ set(CMAKE_CXX_COMPILER_FORCED TRUE CACHE INTERNAL "")
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
-
-# 静态链接
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
-# pthread 强制设置
 set(THREADS_PREFER_PTHREAD_FLAG ON CACHE BOOL "" FORCE)
 set(CMAKE_USE_PTHREADS_INIT TRUE CACHE BOOL "" FORCE)
 set(Threads_FOUND TRUE CACHE BOOL "" FORCE)
@@ -30,7 +26,6 @@ set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "" FORCE)
 
-# 添加库搜索路径（由命令行传入的 EXTRA_LIB_DIRS）
 if(DEFINED EXTRA_LIB_DIRS)
     link_directories(${EXTRA_LIB_DIRS})
 endif()
@@ -46,53 +41,24 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# ========== 针对 libcutils 的精确修复 ==========
 if(TARGET libcutils)
-    # 1. 为目标整体添加 NDK 头文件路径（系统包含，避免警告），并定义公共宏
-    if(DEFINED NDK_SYSROOT)
-        target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
-    endif()
-    target_compile_definitions(libcutils PRIVATE
-        PROP_NAME_MAX=32
-        __BIONIC__=1
-        _GNU_SOURCE
-    )
+    target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32)
 
-    # 2. 需要纯净 GNU 环境的源文件列表（将覆盖掉 NDK 包含路径）
-    set(GNU_ONLY_SOURCES
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/canned_fs_config.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs_config.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/properties.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/android_get_control_file.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/config_utils.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/hashmap.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/load_file.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/multiuser.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/partition_utils.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/qtaguid.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/record_stream.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/socket_inaddr_any_server_unix.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/threads.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/uevent.cpp
-        # 以下为 C 文件
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/str_parms.c
+    set(NDK_REQUIRED_SOURCES
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-dev.cpp
+        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
     )
 
-    foreach(src_file IN LISTS GNU_ONLY_SOURCES)
+    foreach(src_file IN LISTS NDK_REQUIRED_SOURCES)
         if(EXISTS "${src_file}")
             set_source_files_properties(${src_file}
-                PROPERTIES INCLUDE_DIRECTORIES ""
+                PROPERTIES
+                INCLUDE_DIRECTORIES "${NDK_SYSROOT}/usr/include"
+                COMPILE_DEFINITIONS "__BIONIC__=1"
             )
         endif()
     endforeach()
-
-    # 3. 对需要特殊 Android 宏的文件补充定义（ashmem-dev 需要 __ANDROID__ 等）
-    set_source_files_properties(
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
-        PROPERTIES COMPILE_DEFINITIONS "__ANDROID__"
-    )
 endif()
