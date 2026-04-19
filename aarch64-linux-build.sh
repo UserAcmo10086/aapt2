@@ -32,25 +32,14 @@ CRTBEGIN_T_DIR=$(aarch64-linux-gnu-gcc -print-file-name=crtbeginT.o | xargs dirn
 [[ ! -d "${CRTBEGIN_T_DIR}" ]] && echo "错误：无法确定 crtbeginT.o 目录" && exit 1
 echo ">>> crtbeginT.o 目录: ${CRTBEGIN_T_DIR}"
 
-# 精确探测 C++ 头文件目录：/usr/aarch64-linux-gnu/include/c++/版本号
+# 精确探测 C++ 头文件目录
 CXX_BASE="${LINUX_SYSROOT}/include/c++"
-if [[ ! -d "${CXX_BASE}" ]]; then
-    echo "错误：${CXX_BASE} 不存在，请安装 libstdc++-arm64-cross"
-    exit 1
-fi
-# 获取版本目录（例如 13）
+[[ ! -d "${CXX_BASE}" ]] && echo "错误：${CXX_BASE} 不存在，请安装 libstdc++-arm64-cross" && exit 1
 CXX_VER=$(find "${CXX_BASE}" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
-if [[ -z "${CXX_VER}" ]]; then
-    echo "错误：未找到 C++ 版本目录"
-    exit 1
-fi
-# 构建完整头文件路径：版本目录和版本目录/aarch64-linux-gnu
+[[ -z "${CXX_VER}" ]] && echo "错误：未找到 C++ 版本目录" && exit 1
 CXX_TOP_DIR="${CXX_VER}"
 CXX_ARCH_DIR="${CXX_VER}/aarch64-linux-gnu"
-if [[ ! -d "${CXX_ARCH_DIR}" ]]; then
-    echo "错误：${CXX_ARCH_DIR} 不存在，请确认 libstdc++-arm64-cross 安装正确"
-    exit 1
-fi
+[[ ! -d "${CXX_ARCH_DIR}" ]] && echo "错误：${CXX_ARCH_DIR} 不存在，请确认 libstdc++-arm64-cross 安装正确" && exit 1
 echo ">>> C++ 头文件顶层目录: ${CXX_TOP_DIR}"
 echo ">>> C++ 头文件架构目录: ${CXX_ARCH_DIR}"
 
@@ -74,7 +63,6 @@ COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolch
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++2a"
-# 添加 C++ 头文件搜索路径（精确指定）
 CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
 
 LINKER_FLAGS="-fuse-ld=lld -static -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib -lstdc++"
@@ -93,6 +81,7 @@ cmake -GNinja \
     -DCMAKE_CXX_COMPILER_WORKS=ON \
     -DZLIB_LIBRARY="${ZLIB_LIBRARY}" \
     -DZLIB_INCLUDE_DIR="${ZLIB_INCLUDE_DIR}" \
+    -DPNG_ARM_NEON=off \
     -DEXTRA_LIB_DIRS="${CRTBEGIN_T_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DPNG_SHARED=OFF \
