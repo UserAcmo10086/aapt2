@@ -41,10 +41,24 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# ========== 全局 NDK 路径 + 默认禁用 __BIONIC__ ==========
+# ========== 仅针对 libcutils 目标局部添加 NDK 头文件路径 ==========
 if(TARGET libcutils)
-    target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32 _GNU_SOURCE __BIONIC__=0)
+    # 1. 为目标局部添加 NDK 头文件路径（仅对 C/C++ 文件有效，不污染其他目标）
+    target_compile_options(libcutils PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-isystem>
+        $<$<COMPILE_LANGUAGE:CXX>:${NDK_SYSROOT}/usr/include>
+        $<$<COMPILE_LANGUAGE:C>:-isystem>
+        $<$<COMPILE_LANGUAGE:C>:${NDK_SYSROOT}/usr/include>
+    )
 
+    # 2. 定义公共宏（默认 __BIONIC__=0，避免 GNU 源文件误用 Android 代码）
+    target_compile_definitions(libcutils PRIVATE
+        PROP_NAME_MAX=32
+        _GNU_SOURCE
+        __BIONIC__=0
+    )
+
+    # 3. 需要 __BIONIC__ 的源文件列表
     set(BIONIC_SOURCES
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
@@ -53,6 +67,7 @@ if(TARGET libcutils)
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
     )
 
+    # 4. 仅为这些源文件覆盖 __BIONIC__ 定义为 1
     foreach(src_file IN LISTS BIONIC_SOURCES)
         if(EXISTS "${src_file}")
             set_source_files_properties(${src_file} PROPERTIES COMPILE_DEFINITIONS "__BIONIC__=1")
