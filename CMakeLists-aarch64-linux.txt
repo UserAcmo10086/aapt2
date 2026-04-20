@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.14.2)
 project(build-tools)
 
+# 强制跳过编译器工作性检查（交叉编译必须）
 set(CMAKE_C_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE INTERNAL "")
 set(CMAKE_C_COMPILER_FORCED TRUE CACHE INTERNAL "")
@@ -8,8 +9,11 @@ set(CMAKE_CXX_COMPILER_FORCED TRUE CACHE INTERNAL "")
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
+
+# 静态链接
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
+# pthread 强制设置
 set(THREADS_PREFER_PTHREAD_FLAG ON CACHE BOOL "" FORCE)
 set(CMAKE_USE_PTHREADS_INIT TRUE CACHE BOOL "" FORCE)
 set(Threads_FOUND TRUE CACHE BOOL "" FORCE)
@@ -26,6 +30,7 @@ set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "" FORCE)
 
+# 添加库搜索路径（由命令行传入的 EXTRA_LIB_DIRS）
 if(DEFINED EXTRA_LIB_DIRS)
     link_directories(${EXTRA_LIB_DIRS})
 endif()
@@ -41,36 +46,21 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# ========== 仅针对 libcutils 目标局部添加 NDK 头文件路径 ==========
+# 针对 libcutils 目标添加 NDK sysroot 中的 linux 头文件路径及必要宏定义
 if(TARGET libcutils)
-    # 1. 为目标局部添加 NDK 头文件路径（仅对 C/C++ 文件有效，不污染其他目标）
-    target_compile_options(libcutils PRIVATE
-        $<$<COMPILE_LANGUAGE:CXX>:-isystem>
-        $<$<COMPILE_LANGUAGE:CXX>:${NDK_SYSROOT}/usr/include>
-        $<$<COMPILE_LANGUAGE:C>:-isystem>
-        $<$<COMPILE_LANGUAGE:C>:${NDK_SYSROOT}/usr/include>
-    )
-
-    # 2. 定义公共宏（默认 __BIONIC__=0，避免 GNU 源文件误用 Android 代码）
-    target_compile_definitions(libcutils PRIVATE
-        PROP_NAME_MAX=32
-        _GNU_SOURCE
-        __BIONIC__=0
-    )
-
-    # 3. 需要 __BIONIC__ 的源文件列表
-    set(BIONIC_SOURCES
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-dev.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
-    )
-
-    # 4. 仅为这些源文件覆盖 __BIONIC__ 定义为 1
-    foreach(src_file IN LISTS BIONIC_SOURCES)
-        if(EXISTS "${src_file}")
-            set_source_files_properties(${src_file} PROPERTIES COMPILE_DEFINITIONS "__BIONIC__=1")
+    # 从环境变量获取 NDK 路径（必须已设置）
+    if(DEFINED ENV{ANDROID_NDK})
+        set(NDK_ROOT "$ENV{ANDROID_NDK}")
+        # 根据主机架构选择 prebuilt 子路径（Linux x86_64）
+        set(NDK_SYSROOT "${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+        if(EXISTS "${NDK_SYSROOT}")
+            target_include_directories(libcutils PRIVATE ${NDK_SYSROOT}/usr/include)
+        else()
+            message(WARNING "NDK sysroot not found at ${NDK_SYSROOT}")
         endif()
-    endforeach()
+    else()
+        message(WARNING "ANDROID_NDK environment variable not set")
+    endif()
+    # 定义 Android 属性系统所需的宏（典型值）
+    target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32 PROP_VALUE_MAX=92)
 endif()
