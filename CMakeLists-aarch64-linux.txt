@@ -46,21 +46,9 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# 针对 libcutils 目标添加 NDK sysroot 中的 linux 头文件路径及必要宏定义
-if(TARGET libcutils)
-    # 从环境变量获取 NDK 路径（必须已设置）
-    if(DEFINED ENV{ANDROID_NDK})
-        set(NDK_ROOT "$ENV{ANDROID_NDK}")
-        # 根据主机架构选择 prebuilt 子路径（Linux x86_64）
-        set(NDK_SYSROOT "${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
-        if(EXISTS "${NDK_SYSROOT}")
-            target_include_directories(libcutils PRIVATE ${NDK_SYSROOT}/usr/include)
-        else()
-            message(WARNING "NDK sysroot not found at ${NDK_SYSROOT}")
-        endif()
-    else()
-        message(WARNING "ANDROID_NDK environment variable not set")
-    endif()
-    # 定义 Android 属性系统所需的宏（典型值）
-    target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32 PROP_VALUE_MAX=92)
+# 为 libcutils 目标添加 NDK sysroot 中的头文件路径（仅该目标需要）
+if(TARGET libcutils AND DEFINED NDK_SYSROOT)
+    target_include_directories(libcutils PRIVATE ${NDK_SYSROOT}/usr/include)
+    # 解决 PROP_NAME_MAX 未定义问题（若未定义则回退到 32）
+    target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=PROPERTY_KEY_MAX)
 endif()
