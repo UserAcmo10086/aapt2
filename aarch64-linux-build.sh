@@ -53,7 +53,6 @@ export LIBRARY_PATH="${CRTBEGIN_T_DIR}:${LINUX_SYSROOT}/lib:${LINUX_SYSROOT}/usr
 COMMON_FLAGS="--target=aarch64-linux-gnu --sysroot=${LINUX_SYSROOT} --gcc-toolchain=/usr"
 COMMON_FLAGS+=" -fPIC -Wno-attributes -fcolor-diagnostics"
 CFLAGS="${COMMON_FLAGS} -std=gnu11"
-# 全局 CXXFLAGS：添加所有必要的宏定义，确保 GNU libc 头文件预处理通过
 CXXFLAGS="${COMMON_FLAGS} -std=gnu++17"
 CXXFLAGS+=" -D__GLIBC_PREREQ\(x,y\)=1 -D__GNUC_PREREQ\(x,y\)=1 -D__GLIBC_USE\(x\)=1"
 CXXFLAGS+=" -D__THROW= -D__wur= -D__nonnull\(x\)="
