@@ -41,17 +41,12 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# ========== 针对 libcutils 的最终精确修复 ==========
+# ========== 回滚至 766 进度配置 + 仅针对缺失 NDK 头文件的源文件精确修复 ==========
 if(TARGET libcutils)
-    # 添加 NDK 头文件路径
-    if(DEFINED NDK_SYSROOT)
-        target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
-    endif()
-
-    # 定义公共宏
+    # 公共宏定义（与 766 进度一致，且未启用 __BIONIC__ 全局污染）
     target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32 _GNU_SOURCE)
 
-    # 需要 __BIONIC__ 的源文件列表
+    # 需要 NDK 头文件及 __BIONIC__ 宏的源文件列表（正是这些文件需要特殊处理）
     set(BIONIC_SOURCES
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
@@ -60,11 +55,16 @@ if(TARGET libcutils)
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
     )
 
-    # 使用 target_compile_options 为这些源文件追加 -D__BIONIC__=1
+    # 仅为上述源文件精确追加 NDK 包含路径和 __BIONIC__ 宏
     foreach(src_file IN LISTS BIONIC_SOURCES)
         if(EXISTS "${src_file}")
-            target_compile_options(libcutils PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-D__BIONIC__=1>)
-            target_compile_options(libcutils PRIVATE $<$<COMPILE_LANGUAGE:C>:-D__BIONIC__=1>)
+            set_source_files_properties(${src_file}
+                PROPERTIES
+                # 直接追加编译器选项，添加 NDK 头文件搜索路径
+                COMPILE_OPTIONS "-isystem;${NDK_SYSROOT}/usr/include"
+                # 定义 __BIONIC__ 宏，激活 Android 特有代码分支
+                COMPILE_DEFINITIONS "__BIONIC__=1"
+            )
         endif()
     endforeach()
 endif()
