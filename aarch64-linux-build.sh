@@ -58,6 +58,7 @@ CXXFLAGS+=" -D__GLIBC_PREREQ\(x,y\)=1 -D__GNUC_PREREQ\(x,y\)=1 -D__GLIBC_USE\(x\
 CXXFLAGS+=" -D__THROW= -D__wur= -D__nonnull\(x\)="
 CXXFLAGS+=" -include limits -include cstring"
 CXXFLAGS+=" -isystem ${CXX_TOP_DIR} -isystem ${CXX_ARCH_DIR}"
+CXXFLAGS+=" -isystem ${NDK_SYSROOT}/usr/include"
 
 LINKER_FLAGS="-fuse-ld=lld -static -L${CRTBEGIN_T_DIR} -L${LINUX_SYSROOT}/lib -L${LINUX_SYSROOT}/usr/lib -lstdc++"
 
