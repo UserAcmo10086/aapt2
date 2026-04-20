@@ -43,15 +43,10 @@ add_subdirectory(cmake)
 
 # ========== 针对 libcutils 的最终精确修复 ==========
 if(TARGET libcutils)
-    # 1. 为整个目标添加 NDK 头文件路径（作为 SYSTEM 包含）
-    if(DEFINED NDK_SYSROOT)
-        target_include_directories(libcutils SYSTEM BEFORE PRIVATE ${NDK_SYSROOT}/usr/include)
-    endif()
-
-    # 2. 定义公共宏
+    # 1. 定义公共宏（所有源文件均适用）
     target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32 _GNU_SOURCE)
 
-    # 3. 需要 NDK 环境（__BIONIC__）的源文件列表
+    # 2. 需要 NDK 头文件的源文件列表（将单独添加包含路径和 __BIONIC__ 宏）
     set(BIONIC_SOURCES
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
@@ -59,35 +54,18 @@ if(TARGET libcutils)
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
     )
-    # 4. 为这些源文件添加 __BIONIC__ 宏（仅在文件存在时设置）
+
+    # 3. 为上述源文件单独设置编译标志：添加 NDK 包含路径和 __BIONIC__ 宏
     foreach(src_file IN LISTS BIONIC_SOURCES)
         if(EXISTS "${src_file}")
-            set_source_files_properties(${src_file} PROPERTIES COMPILE_DEFINITIONS "__BIONIC__=1")
+            set_source_files_properties(${src_file}
+                PROPERTIES
+                COMPILE_FLAGS "-isystem ${NDK_SYSROOT}/usr/include"
+                COMPILE_DEFINITIONS "__BIONIC__=1"
+            )
         endif()
     endforeach()
 
-    # 5. 需要纯净 GNU 环境的源文件列表（移除 NDK 头文件路径）
-    set(GNU_ONLY_SOURCES
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/canned_fs_config.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs_config.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/properties.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/android_get_control_file.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/config_utils.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/fs.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/hashmap.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/load_file.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/multiuser.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/partition_utils.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/qtaguid.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/record_stream.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/socket_inaddr_any_server_unix.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/threads.cpp
-        ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/uevent.cpp
-    )
-    # 6. 为这些源文件清除包含路径（仅在文件存在时设置）
-    foreach(src_file IN LISTS GNU_ONLY_SOURCES)
-        if(EXISTS "${src_file}")
-            set_source_files_properties(${src_file} PROPERTIES INCLUDE_DIRECTORIES "")
-        endif()
-    endforeach()
+    # 4. 需要纯净 GNU 环境的源文件列表（不添加任何额外属性，它们将不会包含 NDK 路径）
+    #    （canned_fs_config.cpp、fs_config.cpp、properties.cpp 等均在此列，无需特殊处理）
 endif()
