@@ -41,7 +41,7 @@ add_subdirectory(submodules/googletest EXCLUDE_FROM_ALL)
 
 add_subdirectory(cmake)
 
-# ========== 针对 libcutils 的最终修复 ==========
+# ========== 针对 libcutils 的最终精确修复 ==========
 if(TARGET libcutils)
     # 添加 NDK 头文件路径
     if(DEFINED NDK_SYSROOT)
@@ -51,7 +51,7 @@ if(TARGET libcutils)
     # 定义公共宏
     target_compile_definitions(libcutils PRIVATE PROP_NAME_MAX=32 _GNU_SOURCE)
 
-    # 仅为需要 __BIONIC__ 的源文件定义该宏
+    # 需要 __BIONIC__ 的源文件列表
     set(BIONIC_SOURCES
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/ashmem-dev.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/native_handle.cpp
@@ -59,9 +59,12 @@ if(TARGET libcutils)
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/trace-host.cpp
         ${PROJECT_SOURCE_DIR}/submodules/core/libcutils/strlcpy.c
     )
+
+    # 使用 target_compile_options 为这些源文件追加 -D__BIONIC__=1
     foreach(src_file IN LISTS BIONIC_SOURCES)
         if(EXISTS "${src_file}")
-            set_source_files_properties(${src_file} PROPERTIES COMPILE_DEFINITIONS "__BIONIC__=1")
+            target_compile_options(libcutils PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-D__BIONIC__=1>)
+            target_compile_options(libcutils PRIVATE $<$<COMPILE_LANGUAGE:C>:-D__BIONIC__=1>)
         endif()
     endforeach()
 endif()
